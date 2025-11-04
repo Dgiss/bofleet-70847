@@ -1,0 +1,103 @@
+{
+  "fwatcher": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-fwfo-fwatcher-9af59-authRole",
+      "UnauthRoleArn": "arn:aws:iam::851725201946:role/amplify-fwfo-fwatcher-9af59-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::851725201946:role/amplify-fwfo-fwatcher-9af59-authRole",
+      "Region": "eu-west-3",
+      "DeploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+      "UnauthRoleName": "amplify-fwfo-fwatcher-9af59-unauthRole",
+      "StackName": "amplify-fwfo-fwatcher-9af59",
+      "StackId": "arn:aws:cloudformation:eu-west-3:851725201946:stack/amplify-fwfo-fwatcher-9af59/094b4d00-16bb-11ef-ae52-0e5c49ba92a1",
+      "AmplifyAppId": "d18hz90utultf5"
+    },
+    "categories": {
+      "function": {
+        "FleetWatcherBusinessAlertProsessor": {
+          "gmKey": "123",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherBusinessAlertProsessor-6f7677584952336c4457-build.zip"
+        },
+        "FleetWatcherCustomActions": {
+          "flespiToken": "gA2pUQHcTnz41YKfdkwO6hcaq9ZX9aNGdVZDqfFyMYnOaHwKnLsDNYMaqfqmEqL9",
+          "flespiUrl": "https://flespi.io/gw/devices",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherCustomActions-317161704f55777a7362-build.zip"
+        },
+        "FleetWatcherMaintenanceProcessor": {
+          "mjApikeyPrivate": "67df664573437890fa03d998fc6227c4",
+          "mjApikeyPublic": "a128d016e24913e132e8478965c3bc4c",
+          "mjSender": "k.izzouke@geoloc-systems.com",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherMaintenanceProcessor-514c6f6e483278693753-build.zip"
+        },
+        "FleetWatcherMaintenanceReminder": {
+          "mjApikeyPrivate": "67df664573437890fa03d998fc6227c4",
+          "mjApikeyPublic": "a128d016e24913e132e8478965c3bc4c",
+          "mjSender": "k.izzouke@geoloc-systems.com",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherMaintenanceReminder-494e674136734f673238-build.zip"
+        },
+        "FleetWatcherNotifier": {
+          "mjApikeyPrivate": "123",
+          "mjApikeyPublic": "123",
+          "mjSender": "123*",
+          "twilioApikeyPrivate": "123",
+          "twilioApikeyPublic": "123",
+          "twilioSender": "123",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherNotifier-474d5643746c6d375451-build.zip"
+        },
+        "FleetWatcherReportProcessor": {
+          "flespiActivityReportCalc": "1695308",
+          "flespiDailySummaryCalc": "1695285",
+          "flespiToken": "gA2pUQHcTnz41YKfdkwO6hcaq9ZX9aNGdVZDqfFyMYnOaHwKnLsDNYMaqfqmEqL9",
+          "flespiTrajectoryHistoryCalc": "1675320",
+          "flespiUrl": "https://flespi.io/gw/devices",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherReportProcessor-6b41484c6975574c6b4d-build.zip"
+        },
+        "apiSIV": {
+          "apiToken": "2cc614726936bc2fc2533b8f47f42c06",
+          "infoSivTableName": "sivtable",
+          "vehiclesTableName": "Siv",
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/apiSIV-65707536796645346f76-build.zip"
+        },
+        "AdminQueries36a219b9": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/AdminQueries36a219b9-34453559475263525950-build.zip"
+        },
+        "FleetWatcherCheckAlertDriving": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherCheckAlertDriving-3338516d795176516775-build.zip"
+        },
+        "FleetWatcherFlespiAlertsProcessor": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherFlespiAlertsProcessor-326632663552314d3735-build.zip"
+        },
+        "FleetWatcherproximitySearch": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/FleetWatcherproximitySearch-4931515579526f577634-build.zip"
+        },
+        "RuptelaStreamProcessor": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/RuptelaStreamProcessor-706c76566a5370416a6d-build.zip"
+        },
+        "TeltonikaStreamProcessor": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/TeltonikaStreamProcessor-794e6e79353246496975-build.zip"
+        },
+        "XirgoStreamProcessor": {
+          "deploymentBucketName": "amplify-fwfo-fwatcher-9af59-deployment",
+          "s3Key": "amplify-builds/XirgoStreamProcessor-4c5a4558715749514434-build.zip"
+        },
+        "updatepassword": {}
+      },
+      "auth": {
+        "FleetWatcherFoAuth": {},
+        "userPoolGroups": {}
+      }
+    }
+  }
+}

@@ -1,0 +1,3548 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type ActivityReport {
+  currentPageItemsCount: Int
+  currentPageNumber: Int
+  fullItemsCount: Int
+  items: [ActivityReportRecord]
+  pagesCount: Int
+}
+
+type ActivityReportRecord {
+  begin: AWSDateTime
+  canMileageEnd: Float
+  canMileageStart: Float
+  driverFirstname: String
+  driverLastname: String
+  driverSub: String
+  duration: Float
+  end: AWSDateTime
+  maxSpeed: Float
+  route: String
+  totalCanMileage: Float
+  totalFuelConsumed: Float
+  totalMileage: Float
+  vehicleBrand: String
+  vehicleImmat: String
+}
+
+type Alert @aws_cognito_user_pools @aws_iam {
+  alertCompanyId: ID!
+  alertZoneId: ID
+  byMail: Boolean
+  bySms: Boolean
+  byWhatsapp: Boolean
+  company: Company!
+  createdAt: AWSDateTime!
+  disabled: Boolean
+  emailTemplate: String
+  emails: [String]
+  extra: AWSJSON
+  id: ID!
+  instantaneous: Boolean
+  name: String
+  phones: [String]
+  reportFrequency: AlertFrequency
+  sentToDriver: Boolean!
+  smsTemplate: String
+  type: AlertType!
+  typeLabel: String
+  updatedAt: AWSDateTime!
+  vehicles(filter: ModelVehicleAlertsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleAlertsConnection
+  zone: Zone
+}
+
+type AlertDefinition @aws_cognito_user_pools @aws_iam {
+  calculator: Int
+  createdAt: AWSDateTime!
+  description: String!
+  isFlespi: Boolean!
+  key: AlertType!
+  label: String!
+  updatedAt: AWSDateTime!
+  variables: [String]
+}
+
+type AlertHistory @aws_cognito_user_pools @aws_iam {
+  alertHistoryCompanyId: ID!
+  alertHistoryConfigId: ID!
+  alertHistoryDriverSub: String
+  alertHistoryVehicleImmat: String!
+  company: Company!
+  config: Alert!
+  createdAt: AWSDateTime!
+  data: AWSJSON!
+  driver: Driver
+  id: ID!
+  imei: String!
+  timestamp: AWSTimestamp!
+  type: AlertType!
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+}
+
+type Company @aws_cognito_user_pools @aws_iam {
+  address: String
+  city: String
+  companyDevices(associationDate: ModelStringKeyConditionInput, filter: ModelCompanyDeviceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyDeviceConnection
+  contact: String
+  countryCode: String
+  createdAt: AWSDateTime!
+  creationDate: String
+  depenses(filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDepenseConnection
+  drivers(filter: ModelDriverFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDriverConnection
+  email: String
+  fax: String
+  id: ID!
+  keyedStart: Boolean
+  maintenances(filter: ModelMaintenanceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelMaintenanceConnection
+  mobile: String
+  name: String
+  phone: String
+  pois(filter: ModelPoiFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelPoiConnection
+  postalCode: String
+  siret: String
+  subscriptionDate: String
+  trames(filter: ModelTrameFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelTrameConnection
+  updatedAt: AWSDateTime!
+  users(filter: ModelUserFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelUserConnection
+  vehicles(filter: ModelVehicleFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleConnection
+  zones(filter: ModelZoneFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelZoneConnection
+}
+
+type CompanyDevice @aws_cognito_user_pools @aws_iam {
+  associationDate: AWSDateTime!
+  company: Company
+  companyID: ID!
+  createdAt: AWSDateTime!
+  device: Device
+  deviceIMEI: String!
+  dissociationDate: AWSDateTime
+  id: ID!
+  isActive: Boolean
+  updatedAt: AWSDateTime!
+}
+
+type CustomActionResponse {
+  message: String!
+  status: String!
+}
+
+type DailySummary {
+  currentPageItemsCount: Int
+  currentPageNumber: Int
+  fullItemsCount: Int
+  items: [DailySummaryRecord]
+  pagesCount: Int
+}
+
+type DailySummaryRecord {
+  begin: AWSDateTime
+  distance: Float
+  driverFirstname: String
+  driverLastname: String
+  driverSub: String
+  duration: Float
+  end: AWSDateTime
+  route: String
+  totalMileage: Float
+  vehicleBrand: String
+  vehicleImmat: String
+}
+
+type Depense @aws_cognito_user_pools @aws_iam {
+  associateDate: AWSDateTime
+  company: Company!
+  companyDepensesId: ID!
+  createdAt: AWSDateTime!
+  description: String
+  id: ID!
+  montantHT: Float
+  montantTTC: Float!
+  prestataire: String
+  produit: String
+  qte: Int
+  typeDepense: TypeDepense!
+  typeDepenseId: ID!
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+  vehicleImmat: String!
+  ville: String
+}
+
+type Device @aws_cognito_user_pools @aws_iam {
+  cid: String
+  companyDevices(associationDate: ModelStringKeyConditionInput, filter: ModelCompanyDeviceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyDeviceConnection
+  createdAt: AWSDateTime!
+  deviceVehicleImmat: String
+  device_type_id: Int
+  enabled: Boolean
+  flespi_id: Int
+  imei: String!
+  media_rotate: String
+  media_ttl: String
+  messages_rotate: String
+  messages_ttl: String
+  name: String
+  protocolId: Int
+  sim: String
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle
+}
+
+type Driver @aws_cognito_user_pools @aws_iam {
+  address: String
+  agencyId: String
+  birthDate: String
+  cdc: String
+  code: String
+  comment: String
+  company: Company!
+  companyDriversId: ID!
+  createdAt: AWSDateTime!
+  driverKey: String
+  drivingLicenseNumber: String
+  drivingLicenseType: String
+  email: String
+  firstname: String
+  fullname: String
+  hiringDate: String
+  job: String
+  lastModificationDate: String
+  lastname: String
+  mobile: String
+  nni: String
+  password: String
+  pdm: String
+  sub: String!
+  updatedAt: AWSDateTime!
+  username: String
+}
+
+type DvD @aws_cognito_user_pools @aws_iam {
+  assignmentDate: AWSDateTime!
+  company: Company!
+  createdAt: AWSDateTime!
+  driver: Driver!
+  dvDCompanyId: ID!
+  dvDDriverSub: String!
+  dvDVehicleImmat: String!
+  id: ID!
+  unassignmentDate: AWSDateTime
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+}
+
+type FuelReport {
+  currentPageItemsCount: Int
+  currentPageNumber: Int
+  fullItemsCount: Int
+  items: [FuelReportRecord]
+  pagesCount: Int
+}
+
+type FuelReportRecord {
+  begin: AWSDateTime
+  distance: Float
+  driverFirstname: String
+  driverFullName: String
+  driverLastname: String
+  driverSub: String
+  duration: Float
+  end: AWSDateTime
+  fuelAfter: String
+  fuelBefore: String
+  fuelDelta: String
+  lat: Float
+  lng: Float
+  vehicleBrand: String
+  vehicleImmat: String
+}
+
+type LabelsCollection @aws_cognito_user_pools @aws_iam {
+  createdAt: AWSDateTime!
+  key: String!
+  label: String!
+  type: String!
+  updatedAt: AWSDateTime!
+}
+
+type Maintenance @aws_cognito_user_pools @aws_iam {
+  alertDate: AWSDateTime!
+  company: Company!
+  companyMaintenancesId: ID!
+  cost: Float
+  createdAt: AWSDateTime!
+  creationDate: AWSDateTime!
+  email: String
+  id: ID!
+  lastModificationDate: AWSDateTime
+  notes: String
+  operationType: MaintenanceOperationType!
+  reminderDays: Int!
+  status: MaintenanceStatus!
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+  vehicleMaintenancesImmat: String!
+}
+
+type MaintenanceResponse {
+  message: String!
+  status: String!
+}
+
+type ModelAlertConnection @aws_cognito_user_pools @aws_iam {
+  items: [Alert]!
+  nextToken: String
+}
+
+type ModelAlertDefinitionConnection @aws_cognito_user_pools @aws_iam {
+  items: [AlertDefinition]!
+  nextToken: String
+}
+
+type ModelAlertHistoryConnection @aws_cognito_user_pools @aws_iam {
+  items: [AlertHistory]!
+  nextToken: String
+}
+
+type ModelCompanyConnection @aws_cognito_user_pools @aws_iam {
+  items: [Company]!
+  nextToken: String
+}
+
+type ModelCompanyDeviceConnection @aws_cognito_user_pools @aws_iam {
+  items: [CompanyDevice]!
+  nextToken: String
+}
+
+type ModelDepenseConnection @aws_cognito_user_pools @aws_iam {
+  items: [Depense]!
+  nextToken: String
+}
+
+type ModelDeviceConnection @aws_cognito_user_pools @aws_iam {
+  items: [Device]!
+  nextToken: String
+}
+
+type ModelDriverConnection @aws_cognito_user_pools @aws_iam {
+  items: [Driver]!
+  nextToken: String
+}
+
+type ModelDvDConnection @aws_cognito_user_pools @aws_iam {
+  items: [DvD]!
+  nextToken: String
+}
+
+type ModelLabelsCollectionConnection @aws_cognito_user_pools @aws_iam {
+  items: [LabelsCollection]!
+  nextToken: String
+}
+
+type ModelMaintenanceConnection @aws_cognito_user_pools @aws_iam {
+  items: [Maintenance]!
+  nextToken: String
+}
+
+type ModelPoiConnection @aws_api_key @aws_cognito_user_pools @aws_iam {
+  items: [Poi]!
+  nextToken: String
+}
+
+type ModelTagConnection @aws_cognito_user_pools @aws_iam {
+  items: [Tag]!
+  nextToken: String
+}
+
+type ModelTrameConnection @aws_api_key @aws_cognito_user_pools @aws_iam {
+  items: [Trame]!
+  nextToken: String
+}
+
+type ModelTypeDepenseConnection @aws_cognito_user_pools @aws_iam {
+  items: [TypeDepense]!
+  nextToken: String
+}
+
+type ModelUserConnection @aws_cognito_user_pools @aws_iam {
+  items: [User]!
+  nextToken: String
+}
+
+type ModelVehicleAlertStateConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleAlertState]!
+  nextToken: String
+}
+
+type ModelVehicleAlertsConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleAlerts]!
+  nextToken: String
+}
+
+type ModelVehicleBrandConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleBrand]!
+  nextToken: String
+}
+
+type ModelVehicleCategoryConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleCategory]!
+  nextToken: String
+}
+
+type ModelVehicleConnection @aws_cognito_user_pools @aws_iam {
+  items: [Vehicle]!
+  nextToken: String
+}
+
+type ModelVehicleModelConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleModel]!
+  nextToken: String
+}
+
+type ModelVehicleTagsConnection @aws_cognito_user_pools @aws_iam {
+  items: [VehicleTags]!
+  nextToken: String
+}
+
+type ModelZoneConnection @aws_api_key @aws_cognito_user_pools @aws_iam {
+  items: [Zone]!
+  nextToken: String
+}
+
+type Mutation {
+  createAlert(condition: ModelAlertConditionInput, input: CreateAlertInput!): Alert @aws_cognito_user_pools @aws_iam
+  createAlertDefinition(condition: ModelAlertDefinitionConditionInput, input: CreateAlertDefinitionInput!): AlertDefinition @aws_cognito_user_pools @aws_iam
+  createAlertHistory(condition: ModelAlertHistoryConditionInput, input: CreateAlertHistoryInput!): AlertHistory @aws_cognito_user_pools @aws_iam
+  createCompany(condition: ModelCompanyConditionInput, input: CreateCompanyInput!): Company @aws_cognito_user_pools @aws_iam
+  createCompanyDevice(condition: ModelCompanyDeviceConditionInput, input: CreateCompanyDeviceInput!): CompanyDevice @aws_cognito_user_pools @aws_iam
+  createDepense(condition: ModelDepenseConditionInput, input: CreateDepenseInput!): Depense @aws_cognito_user_pools @aws_iam
+  createDevice(condition: ModelDeviceConditionInput, input: CreateDeviceInput!): Device @aws_cognito_user_pools @aws_iam
+  createDriver(condition: ModelDriverConditionInput, input: CreateDriverInput!): Driver @aws_cognito_user_pools @aws_iam
+  createDvD(condition: ModelDvDConditionInput, input: CreateDvDInput!): DvD @aws_cognito_user_pools @aws_iam
+  createLabelsCollection(condition: ModelLabelsCollectionConditionInput, input: CreateLabelsCollectionInput!): LabelsCollection @aws_cognito_user_pools @aws_iam
+  createMaintenance(condition: ModelMaintenanceConditionInput, input: CreateMaintenanceInput!): Maintenance @aws_cognito_user_pools @aws_iam
+  createPoi(condition: ModelPoiConditionInput, input: CreatePoiInput!): Poi @aws_cognito_user_pools @aws_iam
+  createTag(condition: ModelTagConditionInput, input: CreateTagInput!): Tag @aws_cognito_user_pools @aws_iam
+  createTrame(condition: ModelTrameConditionInput, input: CreateTrameInput!): Trame @aws_cognito_user_pools @aws_iam
+  createTypeDepense(condition: ModelTypeDepenseConditionInput, input: CreateTypeDepenseInput!): TypeDepense @aws_cognito_user_pools @aws_iam
+  createUser(condition: ModelUserConditionInput, input: CreateUserInput!): User @aws_cognito_user_pools @aws_iam
+  createVehicle(condition: ModelVehicleConditionInput, input: CreateVehicleInput!): Vehicle @aws_cognito_user_pools @aws_iam
+  createVehicleAlertState(condition: ModelVehicleAlertStateConditionInput, input: CreateVehicleAlertStateInput!): VehicleAlertState @aws_cognito_user_pools @aws_iam
+  createVehicleAlerts(condition: ModelVehicleAlertsConditionInput, input: CreateVehicleAlertsInput!): VehicleAlerts @aws_cognito_user_pools @aws_iam
+  createVehicleBrand(condition: ModelVehicleBrandConditionInput, input: CreateVehicleBrandInput!): VehicleBrand @aws_cognito_user_pools @aws_iam
+  createVehicleCategory(condition: ModelVehicleCategoryConditionInput, input: CreateVehicleCategoryInput!): VehicleCategory @aws_cognito_user_pools @aws_iam
+  createVehicleModel(condition: ModelVehicleModelConditionInput, input: CreateVehicleModelInput!): VehicleModel @aws_cognito_user_pools @aws_iam
+  createVehicleTags(condition: ModelVehicleTagsConditionInput, input: CreateVehicleTagsInput!): VehicleTags @aws_cognito_user_pools @aws_iam
+  createZone(condition: ModelZoneConditionInput, input: CreateZoneInput!): Zone @aws_cognito_user_pools @aws_iam
+  deleteAlert(condition: ModelAlertConditionInput, input: DeleteAlertInput!): Alert @aws_cognito_user_pools @aws_iam
+  deleteAlertDefinition(condition: ModelAlertDefinitionConditionInput, input: DeleteAlertDefinitionInput!): AlertDefinition @aws_cognito_user_pools @aws_iam
+  deleteAlertHistory(condition: ModelAlertHistoryConditionInput, input: DeleteAlertHistoryInput!): AlertHistory @aws_cognito_user_pools @aws_iam
+  deleteCompany(condition: ModelCompanyConditionInput, input: DeleteCompanyInput!): Company @aws_cognito_user_pools @aws_iam
+  deleteCompanyDevice(condition: ModelCompanyDeviceConditionInput, input: DeleteCompanyDeviceInput!): CompanyDevice @aws_cognito_user_pools @aws_iam
+  deleteDepense(condition: ModelDepenseConditionInput, input: DeleteDepenseInput!): Depense @aws_cognito_user_pools @aws_iam
+  deleteDevice(condition: ModelDeviceConditionInput, input: DeleteDeviceInput!): Device @aws_cognito_user_pools @aws_iam
+  deleteDriver(condition: ModelDriverConditionInput, input: DeleteDriverInput!): Driver @aws_cognito_user_pools @aws_iam
+  deleteDvD(condition: ModelDvDConditionInput, input: DeleteDvDInput!): DvD @aws_cognito_user_pools @aws_iam
+  deleteLabelsCollection(condition: ModelLabelsCollectionConditionInput, input: DeleteLabelsCollectionInput!): LabelsCollection @aws_cognito_user_pools @aws_iam
+  deleteMaintenance(condition: ModelMaintenanceConditionInput, input: DeleteMaintenanceInput!): Maintenance @aws_cognito_user_pools @aws_iam
+  deletePoi(condition: ModelPoiConditionInput, input: DeletePoiInput!): Poi @aws_cognito_user_pools @aws_iam
+  deleteTag(condition: ModelTagConditionInput, input: DeleteTagInput!): Tag @aws_cognito_user_pools @aws_iam
+  deleteTrame(condition: ModelTrameConditionInput, input: DeleteTrameInput!): Trame @aws_cognito_user_pools @aws_iam
+  deleteTypeDepense(condition: ModelTypeDepenseConditionInput, input: DeleteTypeDepenseInput!): TypeDepense @aws_cognito_user_pools @aws_iam
+  deleteUser(condition: ModelUserConditionInput, input: DeleteUserInput!): User @aws_cognito_user_pools @aws_iam
+  deleteVehicle(condition: ModelVehicleConditionInput, input: DeleteVehicleInput!): Vehicle @aws_cognito_user_pools @aws_iam
+  deleteVehicleAlertState(condition: ModelVehicleAlertStateConditionInput, input: DeleteVehicleAlertStateInput!): VehicleAlertState @aws_cognito_user_pools @aws_iam
+  deleteVehicleAlerts(condition: ModelVehicleAlertsConditionInput, input: DeleteVehicleAlertsInput!): VehicleAlerts @aws_cognito_user_pools @aws_iam
+  deleteVehicleBrand(condition: ModelVehicleBrandConditionInput, input: DeleteVehicleBrandInput!): VehicleBrand @aws_cognito_user_pools @aws_iam
+  deleteVehicleCategory(condition: ModelVehicleCategoryConditionInput, input: DeleteVehicleCategoryInput!): VehicleCategory @aws_cognito_user_pools @aws_iam
+  deleteVehicleModel(condition: ModelVehicleModelConditionInput, input: DeleteVehicleModelInput!): VehicleModel @aws_cognito_user_pools @aws_iam
+  deleteVehicleTags(condition: ModelVehicleTagsConditionInput, input: DeleteVehicleTagsInput!): VehicleTags @aws_cognito_user_pools @aws_iam
+  deleteZone(condition: ModelZoneConditionInput, input: DeleteZoneInput!): Zone @aws_cognito_user_pools @aws_iam
+  executeCustomAction(operation: CustomActionOperation!, request: AWSJSON!): CustomActionResponse
+  executeMaintenanceAction(action: MaintenanceAction!, input: AWSJSON, maintenanceId: ID!): MaintenanceResponse
+  updateAlert(condition: ModelAlertConditionInput, input: UpdateAlertInput!): Alert @aws_cognito_user_pools @aws_iam
+  updateAlertDefinition(condition: ModelAlertDefinitionConditionInput, input: UpdateAlertDefinitionInput!): AlertDefinition @aws_cognito_user_pools @aws_iam
+  updateAlertHistory(condition: ModelAlertHistoryConditionInput, input: UpdateAlertHistoryInput!): AlertHistory @aws_cognito_user_pools @aws_iam
+  updateCompany(condition: ModelCompanyConditionInput, input: UpdateCompanyInput!): Company @aws_cognito_user_pools @aws_iam
+  updateCompanyDevice(condition: ModelCompanyDeviceConditionInput, input: UpdateCompanyDeviceInput!): CompanyDevice @aws_cognito_user_pools @aws_iam
+  updateDepense(condition: ModelDepenseConditionInput, input: UpdateDepenseInput!): Depense @aws_cognito_user_pools @aws_iam
+  updateDevice(condition: ModelDeviceConditionInput, input: UpdateDeviceInput!): Device @aws_cognito_user_pools @aws_iam
+  updateDriver(condition: ModelDriverConditionInput, input: UpdateDriverInput!): Driver @aws_cognito_user_pools @aws_iam
+  updateDvD(condition: ModelDvDConditionInput, input: UpdateDvDInput!): DvD @aws_cognito_user_pools @aws_iam
+  updateLabelsCollection(condition: ModelLabelsCollectionConditionInput, input: UpdateLabelsCollectionInput!): LabelsCollection @aws_cognito_user_pools @aws_iam
+  updateMaintenance(condition: ModelMaintenanceConditionInput, input: UpdateMaintenanceInput!): Maintenance @aws_cognito_user_pools @aws_iam
+  updatePoi(condition: ModelPoiConditionInput, input: UpdatePoiInput!): Poi @aws_cognito_user_pools @aws_iam
+  updateTag(condition: ModelTagConditionInput, input: UpdateTagInput!): Tag @aws_cognito_user_pools @aws_iam
+  updateTrame(condition: ModelTrameConditionInput, input: UpdateTrameInput!): Trame @aws_cognito_user_pools @aws_iam
+  updateTypeDepense(condition: ModelTypeDepenseConditionInput, input: UpdateTypeDepenseInput!): TypeDepense @aws_cognito_user_pools @aws_iam
+  updateUser(condition: ModelUserConditionInput, input: UpdateUserInput!): User @aws_cognito_user_pools @aws_iam
+  updateUserPassword(newPassword: String!, userPoolId: String!, username: String!): UpdatePasswordResponse
+  updateVehicle(condition: ModelVehicleConditionInput, input: UpdateVehicleInput!): Vehicle @aws_cognito_user_pools @aws_iam
+  updateVehicleAlertState(condition: ModelVehicleAlertStateConditionInput, input: UpdateVehicleAlertStateInput!): VehicleAlertState @aws_cognito_user_pools @aws_iam
+  updateVehicleAlerts(condition: ModelVehicleAlertsConditionInput, input: UpdateVehicleAlertsInput!): VehicleAlerts @aws_cognito_user_pools @aws_iam
+  updateVehicleBrand(condition: ModelVehicleBrandConditionInput, input: UpdateVehicleBrandInput!): VehicleBrand @aws_cognito_user_pools @aws_iam
+  updateVehicleCategory(condition: ModelVehicleCategoryConditionInput, input: UpdateVehicleCategoryInput!): VehicleCategory @aws_cognito_user_pools @aws_iam
+  updateVehicleModel(condition: ModelVehicleModelConditionInput, input: UpdateVehicleModelInput!): VehicleModel @aws_cognito_user_pools @aws_iam
+  updateVehicleTags(condition: ModelVehicleTagsConditionInput, input: UpdateVehicleTagsInput!): VehicleTags @aws_cognito_user_pools @aws_iam
+  updateZone(condition: ModelZoneConditionInput, input: UpdateZoneInput!): Zone @aws_cognito_user_pools @aws_iam
+}
+
+type Poi @aws_api_key @aws_cognito_user_pools @aws_iam {
+  adress: String
+  company: Company!
+  companyPoisId: ID!
+  createdAt: AWSDateTime!
+  id: ID!
+  lat: Float!
+  lng: Float!
+  name: String!
+  updatedAt: AWSDateTime!
+}
+
+type Point {
+  gisgraphyAddressFormatedPostal: String
+  positionAltitude: Float
+  positionLatitude: Float
+  positionLongitude: Float
+  positionSatellites: Int
+  positionSpeed: Float
+  timestamp: AWSDateTime
+}
+
+type Query {
+  companyDevicesByCompanyIDAndAssociationDate(associationDate: ModelStringKeyConditionInput, companyID: ID!, filter: ModelCompanyDeviceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyDeviceConnection @aws_cognito_user_pools @aws_iam
+  companyDevicesByDeviceIMEIAndAssociationDate(associationDate: ModelStringKeyConditionInput, deviceIMEI: String!, filter: ModelCompanyDeviceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyDeviceConnection @aws_cognito_user_pools @aws_iam
+  depensesByCompanyDepensesId(companyDepensesId: ID!, filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDepenseConnection @aws_cognito_user_pools @aws_iam
+  depensesByTypeDepenseId(filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, typeDepenseId: ID!): ModelDepenseConnection @aws_cognito_user_pools @aws_iam
+  depensesByVehicleImmat(filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, vehicleImmat: String!): ModelDepenseConnection @aws_cognito_user_pools @aws_iam
+  driversByCompanyDriversId(companyDriversId: ID!, filter: ModelDriverFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDriverConnection @aws_cognito_user_pools @aws_iam
+  driversByDriverKey(driverKey: String!, filter: ModelDriverFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDriverConnection @aws_cognito_user_pools @aws_iam
+  dvDSByDvDDriverSub(dvDDriverSub: String!, filter: ModelDvDFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDvDConnection @aws_cognito_user_pools @aws_iam
+  dvDSByDvDVehicleImmat(dvDVehicleImmat: String!, filter: ModelDvDFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDvDConnection @aws_cognito_user_pools @aws_iam
+  getActivityReport(driverSub: String, from: String!, mode: ReportCallMode!, page: Int!, tagId: String, to: String!, vehicleImmat: String): ActivityReport
+  getAlert(id: ID!): Alert @aws_cognito_user_pools @aws_iam
+  getAlertDefinition(key: AlertType!): AlertDefinition @aws_cognito_user_pools @aws_iam
+  getAlertHistory(id: ID!): AlertHistory @aws_cognito_user_pools @aws_iam
+  getCompany(id: ID!): Company @aws_cognito_user_pools @aws_iam
+  getCompanyDevice(id: ID!): CompanyDevice @aws_cognito_user_pools @aws_iam
+  getDailySummary(driverSub: String, from: String!, mode: ReportCallMode!, page: Int!, tagId: String, to: String!, vehicleImmat: String): DailySummary
+  getDepense(id: ID!): Depense @aws_cognito_user_pools @aws_iam
+  getDevice(imei: String!): Device @aws_cognito_user_pools @aws_iam
+  getDriver(sub: String!): Driver @aws_cognito_user_pools @aws_iam
+  getDvD(id: ID!): DvD @aws_cognito_user_pools @aws_iam
+  getFuelReport(driverSub: String, from: String!, mode: ReportCallMode!, page: Int!, tagId: String, to: String!, vehicleImmat: String): FuelReport
+  getLabelsCollection(key: String!): LabelsCollection @aws_cognito_user_pools @aws_iam
+  getMaintenance(id: ID!): Maintenance @aws_cognito_user_pools @aws_iam
+  getPoi(id: ID!): Poi @aws_api_key @aws_cognito_user_pools @aws_iam
+  getProximitySearch(address: String!, companyId: ID!): [Trame]
+  getTag(id: ID!): Tag @aws_cognito_user_pools @aws_iam
+  getTrajectoryHistory(driverSub: String, from: String!, mode: ReportCallMode!, page: Int!, tagId: String, to: String!, vehicleImmat: String): TrajectoryHistory
+  getTrame(id: String!): Trame @aws_api_key @aws_cognito_user_pools @aws_iam
+  getTypeDepense(id: ID!): TypeDepense @aws_cognito_user_pools @aws_iam
+  getUser(sub: String!): User @aws_cognito_user_pools @aws_iam
+  getVehicle(immat: String!): Vehicle @aws_cognito_user_pools @aws_iam
+  getVehicleAlertState(id: String!): VehicleAlertState @aws_cognito_user_pools @aws_iam
+  getVehicleAlerts(id: ID!): VehicleAlerts @aws_cognito_user_pools @aws_iam
+  getVehicleBrand(brandName: String!): VehicleBrand @aws_cognito_user_pools @aws_iam
+  getVehicleCategory(id: ID!): VehicleCategory @aws_cognito_user_pools @aws_iam
+  getVehicleModel(id: ID!): VehicleModel @aws_cognito_user_pools @aws_iam
+  getVehicleTags(id: ID!): VehicleTags @aws_cognito_user_pools @aws_iam
+  getZone(id: ID!): Zone @aws_api_key @aws_cognito_user_pools @aws_iam
+  listAlertDefinitions(filter: ModelAlertDefinitionFilterInput, key: AlertType, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelAlertDefinitionConnection @aws_cognito_user_pools @aws_iam
+  listAlertHistories(filter: ModelAlertHistoryFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelAlertHistoryConnection @aws_cognito_user_pools @aws_iam
+  listAlerts(filter: ModelAlertFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelAlertConnection @aws_cognito_user_pools @aws_iam
+  listCompanies(filter: ModelCompanyFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyConnection @aws_cognito_user_pools @aws_iam
+  listCompanyDevices(filter: ModelCompanyDeviceFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelCompanyDeviceConnection @aws_cognito_user_pools @aws_iam
+  listDepenses(filter: ModelDepenseFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDepenseConnection @aws_cognito_user_pools @aws_iam
+  listDevices(filter: ModelDeviceFilterInput, imei: String, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDeviceConnection @aws_cognito_user_pools @aws_iam
+  listDrivers(filter: ModelDriverFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, sub: String): ModelDriverConnection @aws_cognito_user_pools @aws_iam
+  listDvDS(filter: ModelDvDFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDvDConnection @aws_cognito_user_pools @aws_iam
+  listLabelsCollections(filter: ModelLabelsCollectionFilterInput, key: String, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelLabelsCollectionConnection @aws_cognito_user_pools @aws_iam
+  listMaintenances(filter: ModelMaintenanceFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelMaintenanceConnection @aws_cognito_user_pools @aws_iam
+  listPois(filter: ModelPoiFilterInput, limit: Int, nextToken: String): ModelPoiConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+  listTags(filter: ModelTagFilterInput, limit: Int, nextToken: String): ModelTagConnection @aws_cognito_user_pools @aws_iam
+  listTrames(filter: ModelTrameFilterInput, id: String, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelTrameConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+  listTypeDepenses(filter: ModelTypeDepenseFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelTypeDepenseConnection @aws_cognito_user_pools @aws_iam
+  listUsers(filter: ModelUserFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, sub: String): ModelUserConnection @aws_cognito_user_pools @aws_iam
+  listVehicleAlertStates(filter: ModelVehicleAlertStateFilterInput, id: String, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleAlertStateConnection @aws_cognito_user_pools @aws_iam
+  listVehicleAlerts(filter: ModelVehicleAlertsFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleAlertsConnection @aws_cognito_user_pools @aws_iam
+  listVehicleBrands(brandName: String, filter: ModelVehicleBrandFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleBrandConnection @aws_cognito_user_pools @aws_iam
+  listVehicleCategories(filter: ModelVehicleCategoryFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleCategoryConnection @aws_cognito_user_pools @aws_iam
+  listVehicleModels(filter: ModelVehicleModelFilterInput, id: ID, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleModelConnection @aws_cognito_user_pools @aws_iam
+  listVehicleTags(filter: ModelVehicleTagsFilterInput, limit: Int, nextToken: String): ModelVehicleTagsConnection @aws_cognito_user_pools @aws_iam
+  listVehicles(filter: ModelVehicleFilterInput, immat: String, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleConnection @aws_cognito_user_pools @aws_iam
+  listZones(filter: ModelZoneFilterInput, limit: Int, nextToken: String): ModelZoneConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+  maintenancesByCompanyMaintenancesId(companyMaintenancesId: ID!, filter: ModelMaintenanceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelMaintenanceConnection @aws_cognito_user_pools @aws_iam
+  maintenancesByVehicleMaintenancesImmat(filter: ModelMaintenanceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, vehicleMaintenancesImmat: String!): ModelMaintenanceConnection @aws_cognito_user_pools @aws_iam
+  poisByCompanyPoisId(companyPoisId: ID!, filter: ModelPoiFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelPoiConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+  tramesByCompanyTramesId(companyTramesId: ID!, filter: ModelTrameFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelTrameConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+  usersByCompanyUsersId(companyUsersId: ID!, filter: ModelUserFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelUserConnection @aws_cognito_user_pools @aws_iam
+  usersByRole(filter: ModelUserFilterInput, limit: Int, nextToken: String, role: UserRole!, sortDirection: ModelSortDirection): ModelUserConnection @aws_cognito_user_pools @aws_iam
+  vehicleAlertsByAlertId(alertId: ID!, filter: ModelVehicleAlertsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleAlertsConnection @aws_cognito_user_pools @aws_iam
+  vehicleAlertsByVehicleImmat(filter: ModelVehicleAlertsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, vehicleImmat: String!): ModelVehicleAlertsConnection @aws_cognito_user_pools @aws_iam
+  vehicleTagsByTagId(filter: ModelVehicleTagsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, tagId: ID!): ModelVehicleTagsConnection @aws_cognito_user_pools @aws_iam
+  vehicleTagsByVehicleImmat(filter: ModelVehicleTagsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection, vehicleImmat: String!): ModelVehicleTagsConnection @aws_cognito_user_pools @aws_iam
+  vehiclesByCompanyVehiclesId(companyVehiclesId: ID!, filter: ModelVehicleFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleConnection @aws_cognito_user_pools @aws_iam
+  zonesByCompanyZonesId(companyZonesId: ID!, filter: ModelZoneFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelZoneConnection @aws_api_key @aws_cognito_user_pools @aws_iam
+}
+
+type S3Object @aws_cognito_user_pools @aws_iam {
+  bucket: String!
+  key: String!
+  region: String!
+}
+
+type Subscription {
+  onCreateAlert(filter: ModelSubscriptionAlertFilterInput): Alert @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createAlert"])
+  onCreateAlertDefinition(filter: ModelSubscriptionAlertDefinitionFilterInput): AlertDefinition @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createAlertDefinition"])
+  onCreateAlertHistory(filter: ModelSubscriptionAlertHistoryFilterInput): AlertHistory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createAlertHistory"])
+  onCreateCompany(filter: ModelSubscriptionCompanyFilterInput): Company @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createCompany"])
+  onCreateCompanyDevice(filter: ModelSubscriptionCompanyDeviceFilterInput): CompanyDevice @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createCompanyDevice"])
+  onCreateDepense(filter: ModelSubscriptionDepenseFilterInput): Depense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createDepense"])
+  onCreateDevice(filter: ModelSubscriptionDeviceFilterInput): Device @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createDevice"])
+  onCreateDriver(filter: ModelSubscriptionDriverFilterInput): Driver @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createDriver"])
+  onCreateDvD(filter: ModelSubscriptionDvDFilterInput): DvD @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createDvD"])
+  onCreateLabelsCollection(filter: ModelSubscriptionLabelsCollectionFilterInput): LabelsCollection @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createLabelsCollection"])
+  onCreateMaintenance(filter: ModelSubscriptionMaintenanceFilterInput): Maintenance @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createMaintenance"])
+  onCreatePoi(filter: ModelSubscriptionPoiFilterInput): Poi @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createPoi"])
+  onCreateTag(filter: ModelSubscriptionTagFilterInput): Tag @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createTag"])
+  onCreateTrame(filter: ModelSubscriptionTrameFilterInput): Trame @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createTrame"])
+  onCreateTypeDepense(filter: ModelSubscriptionTypeDepenseFilterInput): TypeDepense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createTypeDepense"])
+  onCreateUser(filter: ModelSubscriptionUserFilterInput): User @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createUser"])
+  onCreateVehicle(filter: ModelSubscriptionVehicleFilterInput): Vehicle @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicle"])
+  onCreateVehicleAlertState(filter: ModelSubscriptionVehicleAlertStateFilterInput): VehicleAlertState @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleAlertState"])
+  onCreateVehicleAlerts(filter: ModelSubscriptionVehicleAlertsFilterInput): VehicleAlerts @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleAlerts"])
+  onCreateVehicleBrand(filter: ModelSubscriptionVehicleBrandFilterInput): VehicleBrand @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleBrand"])
+  onCreateVehicleCategory(filter: ModelSubscriptionVehicleCategoryFilterInput): VehicleCategory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleCategory"])
+  onCreateVehicleModel(filter: ModelSubscriptionVehicleModelFilterInput): VehicleModel @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleModel"])
+  onCreateVehicleTags(filter: ModelSubscriptionVehicleTagsFilterInput): VehicleTags @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createVehicleTags"])
+  onCreateZone(filter: ModelSubscriptionZoneFilterInput): Zone @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["createZone"])
+  onDeleteAlert(filter: ModelSubscriptionAlertFilterInput): Alert @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteAlert"])
+  onDeleteAlertDefinition(filter: ModelSubscriptionAlertDefinitionFilterInput): AlertDefinition @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteAlertDefinition"])
+  onDeleteAlertHistory(filter: ModelSubscriptionAlertHistoryFilterInput): AlertHistory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteAlertHistory"])
+  onDeleteCompany(filter: ModelSubscriptionCompanyFilterInput): Company @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteCompany"])
+  onDeleteCompanyDevice(filter: ModelSubscriptionCompanyDeviceFilterInput): CompanyDevice @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteCompanyDevice"])
+  onDeleteDepense(filter: ModelSubscriptionDepenseFilterInput): Depense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteDepense"])
+  onDeleteDevice(filter: ModelSubscriptionDeviceFilterInput): Device @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteDevice"])
+  onDeleteDriver(filter: ModelSubscriptionDriverFilterInput): Driver @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteDriver"])
+  onDeleteDvD(filter: ModelSubscriptionDvDFilterInput): DvD @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteDvD"])
+  onDeleteLabelsCollection(filter: ModelSubscriptionLabelsCollectionFilterInput): LabelsCollection @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteLabelsCollection"])
+  onDeleteMaintenance(filter: ModelSubscriptionMaintenanceFilterInput): Maintenance @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteMaintenance"])
+  onDeletePoi(filter: ModelSubscriptionPoiFilterInput): Poi @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deletePoi"])
+  onDeleteTag(filter: ModelSubscriptionTagFilterInput): Tag @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteTag"])
+  onDeleteTrame(filter: ModelSubscriptionTrameFilterInput): Trame @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteTrame"])
+  onDeleteTypeDepense(filter: ModelSubscriptionTypeDepenseFilterInput): TypeDepense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteTypeDepense"])
+  onDeleteUser(filter: ModelSubscriptionUserFilterInput): User @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteUser"])
+  onDeleteVehicle(filter: ModelSubscriptionVehicleFilterInput): Vehicle @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicle"])
+  onDeleteVehicleAlertState(filter: ModelSubscriptionVehicleAlertStateFilterInput): VehicleAlertState @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleAlertState"])
+  onDeleteVehicleAlerts(filter: ModelSubscriptionVehicleAlertsFilterInput): VehicleAlerts @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleAlerts"])
+  onDeleteVehicleBrand(filter: ModelSubscriptionVehicleBrandFilterInput): VehicleBrand @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleBrand"])
+  onDeleteVehicleCategory(filter: ModelSubscriptionVehicleCategoryFilterInput): VehicleCategory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleCategory"])
+  onDeleteVehicleModel(filter: ModelSubscriptionVehicleModelFilterInput): VehicleModel @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleModel"])
+  onDeleteVehicleTags(filter: ModelSubscriptionVehicleTagsFilterInput): VehicleTags @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteVehicleTags"])
+  onDeleteZone(filter: ModelSubscriptionZoneFilterInput): Zone @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["deleteZone"])
+  onUpdateAlert(filter: ModelSubscriptionAlertFilterInput): Alert @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateAlert"])
+  onUpdateAlertDefinition(filter: ModelSubscriptionAlertDefinitionFilterInput): AlertDefinition @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateAlertDefinition"])
+  onUpdateAlertHistory(filter: ModelSubscriptionAlertHistoryFilterInput): AlertHistory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateAlertHistory"])
+  onUpdateCompany(filter: ModelSubscriptionCompanyFilterInput): Company @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateCompany"])
+  onUpdateCompanyDevice(filter: ModelSubscriptionCompanyDeviceFilterInput): CompanyDevice @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateCompanyDevice"])
+  onUpdateDepense(filter: ModelSubscriptionDepenseFilterInput): Depense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateDepense"])
+  onUpdateDevice(filter: ModelSubscriptionDeviceFilterInput): Device @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateDevice"])
+  onUpdateDriver(filter: ModelSubscriptionDriverFilterInput): Driver @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateDriver"])
+  onUpdateDvD(filter: ModelSubscriptionDvDFilterInput): DvD @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateDvD"])
+  onUpdateLabelsCollection(filter: ModelSubscriptionLabelsCollectionFilterInput): LabelsCollection @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateLabelsCollection"])
+  onUpdateMaintenance(filter: ModelSubscriptionMaintenanceFilterInput): Maintenance @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateMaintenance"])
+  onUpdatePoi(filter: ModelSubscriptionPoiFilterInput): Poi @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updatePoi"])
+  onUpdateTag(filter: ModelSubscriptionTagFilterInput): Tag @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateTag"])
+  onUpdateTrame(filter: ModelSubscriptionTrameFilterInput): Trame @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateTrame"])
+  onUpdateTypeDepense(filter: ModelSubscriptionTypeDepenseFilterInput): TypeDepense @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateTypeDepense"])
+  onUpdateUser(filter: ModelSubscriptionUserFilterInput): User @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateUser"])
+  onUpdateVehicle(filter: ModelSubscriptionVehicleFilterInput): Vehicle @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicle"])
+  onUpdateVehicleAlertState(filter: ModelSubscriptionVehicleAlertStateFilterInput): VehicleAlertState @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleAlertState"])
+  onUpdateVehicleAlerts(filter: ModelSubscriptionVehicleAlertsFilterInput): VehicleAlerts @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleAlerts"])
+  onUpdateVehicleBrand(filter: ModelSubscriptionVehicleBrandFilterInput): VehicleBrand @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleBrand"])
+  onUpdateVehicleCategory(filter: ModelSubscriptionVehicleCategoryFilterInput): VehicleCategory @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleCategory"])
+  onUpdateVehicleModel(filter: ModelSubscriptionVehicleModelFilterInput): VehicleModel @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleModel"])
+  onUpdateVehicleTags(filter: ModelSubscriptionVehicleTagsFilterInput): VehicleTags @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateVehicleTags"])
+  onUpdateZone(filter: ModelSubscriptionZoneFilterInput): Zone @aws_api_key @aws_cognito_user_pools @aws_iam @aws_subscribe(mutations : ["updateZone"])
+}
+
+type Tag @aws_cognito_user_pools @aws_iam {
+  color: String
+  company: Company!
+  createdAt: AWSDateTime!
+  description: String!
+  id: ID!
+  name: String!
+  tagCompanyId: ID!
+  updatedAt: AWSDateTime!
+  vehicles(filter: ModelVehicleTagsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleTagsConnection
+}
+
+type TrajectoryHistory {
+  currentPageItemsCount: Int
+  currentPageNumber: Int
+  fullItemsCount: Int
+  items: [TrajectoryHistoryRecord]
+  pagesCount: Int
+}
+
+type TrajectoryHistoryRecord {
+  acceleration: String
+  addressEnd: String
+  addressStart: String
+  avgSpeed: Float
+  begin: AWSDateTime
+  braking: String
+  deviceId: String
+  distance: Float
+  driverFirstname: String
+  driverLastname: String
+  driverSub: String
+  duration: Float
+  eco: String
+  end: AWSDateTime
+  groupingDate: String
+  idleTime: Float
+  imei: String
+  maxSpeed: Float
+  points: [Point]
+  tempsArret: Float
+  totalDistance: Float
+  vehicleBrand: String
+  vehicleImmat: String
+}
+
+type Trame @aws_api_key @aws_cognito_user_pools @aws_iam {
+  address: String
+  azimut: Float
+  company: Company
+  companyId: String
+  companyTramesId: ID
+  createdAt: AWSDateTime!
+  distance: Float
+  driver: Driver
+  driverFullName: String
+  fuel: String
+  ibuttonCode: String
+  id: String!
+  immobilisation: Boolean
+  lat: Float
+  lng: Float
+  processor: Processor
+  speed: Float
+  state: String
+  timestamp: AWSDateTime
+  trameDriverSub: String
+  trameVehicleImmat: String
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle
+  vehicleBrandName: String
+}
+
+type TypeDepense @aws_cognito_user_pools @aws_iam {
+  createdAt: AWSDateTime!
+  depenses(filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDepenseConnection
+  description: String
+  id: ID!
+  name: String!
+  updatedAt: AWSDateTime!
+}
+
+type UpdatePasswordResponse {
+  error: String
+  message: String
+}
+
+type User @aws_cognito_user_pools @aws_iam {
+  accessExpiresAt: AWSDateTime
+  accessType: AccessType
+  accessibleVehicles: [String!]
+  address: String
+  applicationVersion: String
+  beginDate: String
+  company: Company!
+  companyUsersId: ID!
+  createdAt: AWSDateTime!
+  dispatcher: String
+  endDate: String
+  firstname: String
+  languageCode: String
+  lastModificationDate: String
+  lastname: String
+  mappingId: String
+  mobile: String
+  password: String
+  picture: S3Object
+  role: UserRole
+  showReport: String
+  sub: String!
+  themeId: String
+  updatedAt: AWSDateTime!
+  username: String
+}
+
+type Vehicle @aws_cognito_user_pools @aws_iam {
+  AWN_VIN: String
+  AWN_code_moteur: String
+  AWN_collection: String
+  AWN_consommation_ex_urbaine: String
+  AWN_consommation_mixte: String
+  AWN_consommation_urbaine: String
+  AWN_date_30: String
+  AWN_date_cg: String
+  AWN_depollution: String
+  AWN_emission_co_2_prf: String
+  AWN_energie_code: String
+  AWN_generation: String
+  AWN_genre: String
+  AWN_group: String
+  AWN_k_type: String
+  AWN_label: String
+  AWN_max_speed: String
+  AWN_mode_injection: String
+  AWN_model: String
+  AWN_model_image: String
+  AWN_nbr_cylindre_energie: String
+  AWN_nbr_cylindres: String
+  AWN_nbr_places: String
+  AWN_nbr_portes: String
+  AWN_nbr_soupapes: String
+  AWN_nbr_vitesses: String
+  AWN_niveau_de_bruit_au_ralenti: String
+  AWN_nom_commercial: String
+  AWN_numero_de_serie: String
+  AWN_poids_max_autorise: String
+  AWN_poids_total: String
+  AWN_poids_total_roulant: String
+  AWN_poids_vide: String
+  AWN_propulsion: String
+  AWN_puissance_KW: String
+  AWN_segment: String
+  AWN_turbo_compressor: String
+  AWN_type_frein: String
+  AWN_type_injection: String
+  AWN_url_image: String
+  AWN_version: String
+  AWN_vitesse_moteur: String
+  VIN: String
+  ad_blue: String
+  ad_green: String
+  alerts(filter: ModelVehicleAlertsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleAlertsConnection
+  boiteVitesse: String
+  brand: VehicleBrand
+  canMileage: String
+  carrosserie: String
+  cl_environ_prf: String
+  co2: String
+  code: String
+  code_certificat_qualite_air: String
+  company: Company!
+  companyVehiclesId: ID!
+  consumption: String
+  couleur: String
+  counterValue: String
+  createdAt: AWSDateTime!
+  dateMiseEnCirculation: String
+  depenses(filter: ModelDepenseFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelDepenseConnection
+  depollution: String
+  device: Device
+  emissions: String
+  energie: String
+  fuelType: String
+  gefcoSend: String
+  icon: String
+  immat: String!
+  immatriculation: String
+  installationPrecautions: String
+  k_type: String
+  kilometerPrice: String
+  kilometerage: String
+  kilometerageDay: String
+  kilometerageLastUpdate: String
+  kilometerageStart: String
+  lastModificationDate: String
+  locations: String
+  maintenances(filter: ModelMaintenanceFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelMaintenanceConnection
+  marque: String
+  marque_id: String
+  maxSpeed: String
+  modele: VehicleModel
+  modele_id: String
+  nomVehicule: String
+  picture: S3Object
+  puissanceDin: String
+  puissanceFiscale: String
+  realImmat: String!
+  rollingTimeDay: String
+  rollingTimeStart: String
+  seatCount: String
+  tags(filter: ModelVehicleTagsFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleTagsConnection
+  tankCapacity: String
+  timeRunning: String
+  type_mine: String
+  updatedAt: AWSDateTime!
+  vehicleBrandBrandName: String
+  vehicleCategory: VehicleCategory
+  vehicleDeviceImei: String
+  vehicleModeleId: ID
+  vehicleVehicleCategoryId: ID
+  version: String
+  year: String
+}
+
+type VehicleAlertState @aws_cognito_user_pools @aws_iam {
+  alert: AlertType!
+  createdAt: AWSDateTime!
+  id: String!
+  state: String
+  timestamp: AWSTimestamp!
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+  vehicleAlertStateVehicleImmat: String!
+  vehicleAlertStateZoneId: ID
+  zone: Zone
+}
+
+type VehicleAlerts @aws_cognito_user_pools @aws_iam {
+  alert: Alert!
+  alertId: ID!
+  createdAt: AWSDateTime!
+  id: ID!
+  isFlespi: Boolean
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+  vehicleImmat: String!
+}
+
+type VehicleBrand @aws_cognito_user_pools @aws_iam {
+  brandName: String!
+  createdAt: AWSDateTime!
+  logo: S3Object
+  models(filter: ModelVehicleModelFilterInput, limit: Int, nextToken: String, sortDirection: ModelSortDirection): ModelVehicleModelConnection
+  updatedAt: AWSDateTime!
+}
+
+type VehicleCategory @aws_cognito_user_pools @aws_iam {
+  category: String!
+  createdAt: AWSDateTime!
+  description: String
+  id: ID!
+  updatedAt: AWSDateTime!
+}
+
+type VehicleModel @aws_cognito_user_pools @aws_iam {
+  brand: VehicleBrand!
+  createdAt: AWSDateTime!
+  id: ID!
+  modele: String
+  updatedAt: AWSDateTime!
+  vehicleBrandModelsBrandName: String
+}
+
+type VehicleTags @aws_cognito_user_pools @aws_iam {
+  createdAt: AWSDateTime!
+  id: ID!
+  tag: Tag!
+  tagId: ID!
+  updatedAt: AWSDateTime!
+  vehicle: Vehicle!
+  vehicleImmat: String!
+}
+
+type Zone @aws_api_key @aws_cognito_user_pools @aws_iam {
+  adress: String
+  company: Company!
+  companyZonesId: ID!
+  createdAt: AWSDateTime!
+  id: ID!
+  lat: Float!
+  lng: Float!
+  name: String!
+  radius: Int
+  updatedAt: AWSDateTime!
+}
+
+enum AccessType {
+  FULL_COMPANY
+  VEHICLE_LIST
+}
+
+enum AlertFrequency {
+  daily
+  monthly
+  weekly
+}
+
+enum AlertType {
+  add_fuel
+  battery_warning
+  collision_detection
+  device_disconnected
+  maintenance_required
+  mileage_exceeded
+  speed_limit_exceeded
+  start_driving
+  timefencing
+  unrecognized_driver
+  zone_boundary
+}
+
+enum CustomActionOperation {
+  delete_alert
+  link_conductor_vehicle
+  link_vehicle_alert
+  setup_start_driving_Alert
+  unlink_vehicle_alert
+}
+
+enum MaintenanceAction {
+  cancel_maintenance
+  complete_maintenance
+  schedule_maintenance
+  update_maintenance
+}
+
+enum MaintenanceOperationType {
+  ALIGNEMENT_ROUES
+  CHANGEMENT_HUILE
+  CHANGEMENT_LIQUIDE_TRANSMISSION
+  FLUSH_LIQUIDE_REFROIDISSEMENT
+  INSPECTION_CONVERTISSEUR_CATALYTIQUE
+  INSPECTION_FREINS
+  INSPECTION_MOYEU_ROUE
+  INSPECTION_RADIATEUR
+  INSPECTION_ROULEMENTS_ROUE
+  INSPECTION_SUSPENSION
+  INSPECTION_SYSTEME_ALLUMAGE
+  INSPECTION_SYSTEME_DIRECTION
+  NETTOYAGE_CORPS_PAPILLON
+  REGLAGE_MOTEUR
+  REGLAGE_SOUPAPES
+  REMPLACEMENT_BATTERIE
+  REMPLACEMENT_BOUGIES
+  REMPLACEMENT_COURROIE_DISTRIBUTION
+  REMPLACEMENT_COURROIE_ENTRAINEMENT
+  REMPLACEMENT_FILTRE_AIR
+  REMPLACEMENT_FILTRE_CARBURANT
+  REMPLACEMENT_FILTRE_HABITACLE
+  REMPLACEMENT_LIQUIDE_DIRECTION
+  REMPLACEMENT_LIQUIDE_FREIN
+  REMPLACEMENT_VALVE_PCV
+  ROTATION_PNEUS
+  SERVICE_ETRIER_FREIN
+  VERIFICATION_FLUIDES
+  VERIFICATION_SYSTEME_ECHAPPEMENT
+  VERIFICATION_SYSTEME_EMISSION
+}
+
+enum MaintenanceStatus {
+  CLOSED
+  OPENED
+  PROGRAMMED
+}
+
+enum ModelAttributeTypes {
+  _null
+  binary
+  binarySet
+  bool
+  list
+  map
+  number
+  numberSet
+  string
+  stringSet
+}
+
+enum ModelSortDirection {
+  ASC
+  DESC
+}
+
+enum Processor {
+  ruptela
+  teltonika
+  xirgo
+}
+
+enum ReportCallMode {
+  activity_report
+  daily_summary
+  fuel_report
+  trajectory_history
+}
+
+enum UserRole {
+  ADMIN
+  INVITED
+  LIMITED_INVITED
+  MANAGER
+}
+
+input CreateAlertDefinitionInput {
+  calculator: Int
+  description: String!
+  isFlespi: Boolean!
+  key: AlertType!
+  label: String!
+  variables: [String]
+}
+
+input CreateAlertHistoryInput {
+  alertHistoryCompanyId: ID!
+  alertHistoryConfigId: ID!
+  alertHistoryDriverSub: String
+  alertHistoryVehicleImmat: String!
+  data: AWSJSON!
+  id: ID
+  imei: String!
+  timestamp: AWSTimestamp!
+  type: AlertType!
+}
+
+input CreateAlertInput {
+  alertCompanyId: ID!
+  alertZoneId: ID
+  byMail: Boolean
+  bySms: Boolean
+  byWhatsapp: Boolean
+  disabled: Boolean
+  emailTemplate: String
+  emails: [String]
+  extra: AWSJSON
+  id: ID
+  instantaneous: Boolean
+  name: String
+  phones: [String]
+  reportFrequency: AlertFrequency
+  sentToDriver: Boolean!
+  smsTemplate: String
+  type: AlertType!
+  typeLabel: String
+}
+
+input CreateCompanyDeviceInput {
+  associationDate: AWSDateTime!
+  companyID: ID!
+  deviceIMEI: String!
+  dissociationDate: AWSDateTime
+  id: ID
+  isActive: Boolean
+}
+
+input CreateCompanyInput {
+  address: String
+  city: String
+  contact: String
+  countryCode: String
+  creationDate: String
+  email: String
+  fax: String
+  id: ID
+  keyedStart: Boolean
+  mobile: String
+  name: String
+  phone: String
+  postalCode: String
+  siret: String
+  subscriptionDate: String
+}
+
+input CreateDepenseInput {
+  associateDate: AWSDateTime
+  companyDepensesId: ID!
+  description: String
+  id: ID
+  montantHT: Float
+  montantTTC: Float!
+  prestataire: String
+  produit: String
+  qte: Int
+  typeDepenseId: ID!
+  vehicleImmat: String!
+  ville: String
+}
+
+input CreateDeviceInput {
+  cid: String
+  deviceVehicleImmat: String
+  device_type_id: Int
+  enabled: Boolean
+  flespi_id: Int
+  imei: String!
+  media_rotate: String
+  media_ttl: String
+  messages_rotate: String
+  messages_ttl: String
+  name: String
+  protocolId: Int
+  sim: String
+}
+
+input CreateDriverInput {
+  address: String
+  agencyId: String
+  birthDate: String
+  cdc: String
+  code: String
+  comment: String
+  companyDriversId: ID!
+  driverKey: String
+  drivingLicenseNumber: String
+  drivingLicenseType: String
+  email: String
+  firstname: String
+  fullname: String
+  hiringDate: String
+  job: String
+  lastModificationDate: String
+  lastname: String
+  mobile: String
+  nni: String
+  password: String
+  pdm: String
+  sub: String!
+  username: String
+}
+
+input CreateDvDInput {
+  assignmentDate: AWSDateTime!
+  dvDCompanyId: ID!
+  dvDDriverSub: String!
+  dvDVehicleImmat: String!
+  id: ID
+  unassignmentDate: AWSDateTime
+}
+
+input CreateLabelsCollectionInput {
+  key: String!
+  label: String!
+  type: String!
+}
+
+input CreateMaintenanceInput {
+  alertDate: AWSDateTime!
+  companyMaintenancesId: ID!
+  cost: Float
+  creationDate: AWSDateTime!
+  email: String
+  id: ID
+  lastModificationDate: AWSDateTime
+  notes: String
+  operationType: MaintenanceOperationType!
+  reminderDays: Int!
+  status: MaintenanceStatus!
+  vehicleMaintenancesImmat: String!
+}
+
+input CreatePoiInput {
+  adress: String
+  companyPoisId: ID!
+  id: ID
+  lat: Float!
+  lng: Float!
+  name: String!
+}
+
+input CreateTagInput {
+  color: String
+  description: String!
+  id: ID
+  name: String!
+  tagCompanyId: ID!
+}
+
+input CreateTrameInput {
+  address: String
+  azimut: Float
+  companyId: String
+  companyTramesId: ID
+  distance: Float
+  driverFullName: String
+  fuel: String
+  ibuttonCode: String
+  id: String
+  immobilisation: Boolean
+  lat: Float
+  lng: Float
+  processor: Processor
+  speed: Float
+  state: String
+  timestamp: AWSDateTime
+  trameDriverSub: String
+  trameVehicleImmat: String
+  vehicleBrandName: String
+}
+
+input CreateTypeDepenseInput {
+  description: String
+  id: ID
+  name: String!
+}
+
+input CreateUserInput {
+  accessExpiresAt: AWSDateTime
+  accessType: AccessType
+  accessibleVehicles: [String!]
+  address: String
+  applicationVersion: String
+  beginDate: String
+  companyUsersId: ID!
+  dispatcher: String
+  endDate: String
+  firstname: String
+  languageCode: String
+  lastModificationDate: String
+  lastname: String
+  mappingId: String
+  mobile: String
+  password: String
+  picture: S3ObjectInput
+  role: UserRole
+  showReport: String
+  sub: String!
+  themeId: String
+  username: String
+}
+
+input CreateVehicleAlertStateInput {
+  alert: AlertType!
+  id: String
+  state: String
+  timestamp: AWSTimestamp!
+  vehicleAlertStateVehicleImmat: String!
+  vehicleAlertStateZoneId: ID
+}
+
+input CreateVehicleAlertsInput {
+  alertId: ID!
+  id: ID
+  isFlespi: Boolean
+  vehicleImmat: String!
+}
+
+input CreateVehicleBrandInput {
+  brandName: String!
+  logo: S3ObjectInput
+}
+
+input CreateVehicleCategoryInput {
+  category: String!
+  description: String
+  id: ID
+}
+
+input CreateVehicleInput {
+  AWN_VIN: String
+  AWN_code_moteur: String
+  AWN_collection: String
+  AWN_consommation_ex_urbaine: String
+  AWN_consommation_mixte: String
+  AWN_consommation_urbaine: String
+  AWN_date_30: String
+  AWN_date_cg: String
+  AWN_depollution: String
+  AWN_emission_co_2_prf: String
+  AWN_energie_code: String
+  AWN_generation: String
+  AWN_genre: String
+  AWN_group: String
+  AWN_k_type: String
+  AWN_label: String
+  AWN_max_speed: String
+  AWN_mode_injection: String
+  AWN_model: String
+  AWN_model_image: String
+  AWN_nbr_cylindre_energie: String
+  AWN_nbr_cylindres: String
+  AWN_nbr_places: String
+  AWN_nbr_portes: String
+  AWN_nbr_soupapes: String
+  AWN_nbr_vitesses: String
+  AWN_niveau_de_bruit_au_ralenti: String
+  AWN_nom_commercial: String
+  AWN_numero_de_serie: String
+  AWN_poids_max_autorise: String
+  AWN_poids_total: String
+  AWN_poids_total_roulant: String
+  AWN_poids_vide: String
+  AWN_propulsion: String
+  AWN_puissance_KW: String
+  AWN_segment: String
+  AWN_turbo_compressor: String
+  AWN_type_frein: String
+  AWN_type_injection: String
+  AWN_url_image: String
+  AWN_version: String
+  AWN_vitesse_moteur: String
+  VIN: String
+  ad_blue: String
+  ad_green: String
+  boiteVitesse: String
+  canMileage: String
+  carrosserie: String
+  cl_environ_prf: String
+  co2: String
+  code: String
+  code_certificat_qualite_air: String
+  companyVehiclesId: ID!
+  consumption: String
+  couleur: String
+  counterValue: String
+  dateMiseEnCirculation: String
+  depollution: String
+  emissions: String
+  energie: String
+  fuelType: String
+  gefcoSend: String
+  icon: String
+  immat: String!
+  immatriculation: String
+  installationPrecautions: String
+  k_type: String
+  kilometerPrice: String
+  kilometerage: String
+  kilometerageDay: String
+  kilometerageLastUpdate: String
+  kilometerageStart: String
+  lastModificationDate: String
+  locations: String
+  marque: String
+  marque_id: String
+  maxSpeed: String
+  modele_id: String
+  nomVehicule: String
+  picture: S3ObjectInput
+  puissanceDin: String
+  puissanceFiscale: String
+  realImmat: String!
+  rollingTimeDay: String
+  rollingTimeStart: String
+  seatCount: String
+  tankCapacity: String
+  timeRunning: String
+  type_mine: String
+  vehicleBrandBrandName: String
+  vehicleDeviceImei: String
+  vehicleModeleId: ID
+  vehicleVehicleCategoryId: ID
+  version: String
+  year: String
+}
+
+input CreateVehicleModelInput {
+  id: ID
+  modele: String
+  vehicleBrandModelsBrandName: String
+}
+
+input CreateVehicleTagsInput {
+  id: ID
+  tagId: ID!
+  vehicleImmat: String!
+}
+
+input CreateZoneInput {
+  adress: String
+  companyZonesId: ID!
+  id: ID
+  lat: Float!
+  lng: Float!
+  name: String!
+  radius: Int
+}
+
+input DeleteAlertDefinitionInput {
+  key: AlertType!
+}
+
+input DeleteAlertHistoryInput {
+  id: ID!
+}
+
+input DeleteAlertInput {
+  id: ID!
+}
+
+input DeleteCompanyDeviceInput {
+  id: ID!
+}
+
+input DeleteCompanyInput {
+  id: ID!
+}
+
+input DeleteDepenseInput {
+  id: ID!
+}
+
+input DeleteDeviceInput {
+  imei: String!
+}
+
+input DeleteDriverInput {
+  sub: String!
+}
+
+input DeleteDvDInput {
+  id: ID!
+}
+
+input DeleteLabelsCollectionInput {
+  key: String!
+}
+
+input DeleteMaintenanceInput {
+  id: ID!
+}
+
+input DeletePoiInput {
+  id: ID!
+}
+
+input DeleteTagInput {
+  id: ID!
+}
+
+input DeleteTrameInput {
+  id: String!
+}
+
+input DeleteTypeDepenseInput {
+  id: ID!
+}
+
+input DeleteUserInput {
+  sub: String!
+}
+
+input DeleteVehicleAlertStateInput {
+  id: String!
+}
+
+input DeleteVehicleAlertsInput {
+  id: ID!
+}
+
+input DeleteVehicleBrandInput {
+  brandName: String!
+}
+
+input DeleteVehicleCategoryInput {
+  id: ID!
+}
+
+input DeleteVehicleInput {
+  immat: String!
+}
+
+input DeleteVehicleModelInput {
+  id: ID!
+}
+
+input DeleteVehicleTagsInput {
+  id: ID!
+}
+
+input DeleteZoneInput {
+  id: ID!
+}
+
+input ModelAccessTypeInput {
+  eq: AccessType
+  ne: AccessType
+}
+
+input ModelAlertConditionInput {
+  alertCompanyId: ModelIDInput
+  alertZoneId: ModelIDInput
+  and: [ModelAlertConditionInput]
+  byMail: ModelBooleanInput
+  bySms: ModelBooleanInput
+  byWhatsapp: ModelBooleanInput
+  createdAt: ModelStringInput
+  disabled: ModelBooleanInput
+  emailTemplate: ModelStringInput
+  emails: ModelStringInput
+  extra: ModelStringInput
+  instantaneous: ModelBooleanInput
+  name: ModelStringInput
+  not: ModelAlertConditionInput
+  or: [ModelAlertConditionInput]
+  phones: ModelStringInput
+  reportFrequency: ModelAlertFrequencyInput
+  sentToDriver: ModelBooleanInput
+  smsTemplate: ModelStringInput
+  type: ModelAlertTypeInput
+  typeLabel: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelAlertDefinitionConditionInput {
+  and: [ModelAlertDefinitionConditionInput]
+  calculator: ModelIntInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  isFlespi: ModelBooleanInput
+  label: ModelStringInput
+  not: ModelAlertDefinitionConditionInput
+  or: [ModelAlertDefinitionConditionInput]
+  updatedAt: ModelStringInput
+  variables: ModelStringInput
+}
+
+input ModelAlertDefinitionFilterInput {
+  and: [ModelAlertDefinitionFilterInput]
+  calculator: ModelIntInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  id: ModelIDInput
+  isFlespi: ModelBooleanInput
+  key: ModelAlertTypeInput
+  label: ModelStringInput
+  not: ModelAlertDefinitionFilterInput
+  or: [ModelAlertDefinitionFilterInput]
+  updatedAt: ModelStringInput
+  variables: ModelStringInput
+}
+
+input ModelAlertFilterInput {
+  alertCompanyId: ModelIDInput
+  alertZoneId: ModelIDInput
+  and: [ModelAlertFilterInput]
+  byMail: ModelBooleanInput
+  bySms: ModelBooleanInput
+  byWhatsapp: ModelBooleanInput
+  createdAt: ModelStringInput
+  disabled: ModelBooleanInput
+  emailTemplate: ModelStringInput
+  emails: ModelStringInput
+  extra: ModelStringInput
+  id: ModelIDInput
+  instantaneous: ModelBooleanInput
+  name: ModelStringInput
+  not: ModelAlertFilterInput
+  or: [ModelAlertFilterInput]
+  phones: ModelStringInput
+  reportFrequency: ModelAlertFrequencyInput
+  sentToDriver: ModelBooleanInput
+  smsTemplate: ModelStringInput
+  type: ModelAlertTypeInput
+  typeLabel: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelAlertFrequencyInput {
+  eq: AlertFrequency
+  ne: AlertFrequency
+}
+
+input ModelAlertHistoryConditionInput {
+  alertHistoryCompanyId: ModelIDInput
+  alertHistoryConfigId: ModelIDInput
+  alertHistoryDriverSub: ModelStringInput
+  alertHistoryVehicleImmat: ModelStringInput
+  and: [ModelAlertHistoryConditionInput]
+  createdAt: ModelStringInput
+  data: ModelStringInput
+  imei: ModelStringInput
+  not: ModelAlertHistoryConditionInput
+  or: [ModelAlertHistoryConditionInput]
+  timestamp: ModelIntInput
+  type: ModelAlertTypeInput
+  updatedAt: ModelStringInput
+}
+
+input ModelAlertHistoryFilterInput {
+  alertHistoryCompanyId: ModelIDInput
+  alertHistoryConfigId: ModelIDInput
+  alertHistoryDriverSub: ModelStringInput
+  alertHistoryVehicleImmat: ModelStringInput
+  and: [ModelAlertHistoryFilterInput]
+  createdAt: ModelStringInput
+  data: ModelStringInput
+  id: ModelIDInput
+  imei: ModelStringInput
+  not: ModelAlertHistoryFilterInput
+  or: [ModelAlertHistoryFilterInput]
+  timestamp: ModelIntInput
+  type: ModelAlertTypeInput
+  updatedAt: ModelStringInput
+}
+
+input ModelAlertTypeInput {
+  eq: AlertType
+  ne: AlertType
+}
+
+input ModelBooleanInput {
+  attributeExists: Boolean
+  attributeType: ModelAttributeTypes
+  eq: Boolean
+  ne: Boolean
+}
+
+input ModelCompanyConditionInput {
+  address: ModelStringInput
+  and: [ModelCompanyConditionInput]
+  city: ModelStringInput
+  contact: ModelStringInput
+  countryCode: ModelStringInput
+  createdAt: ModelStringInput
+  creationDate: ModelStringInput
+  email: ModelStringInput
+  fax: ModelStringInput
+  keyedStart: ModelBooleanInput
+  mobile: ModelStringInput
+  name: ModelStringInput
+  not: ModelCompanyConditionInput
+  or: [ModelCompanyConditionInput]
+  phone: ModelStringInput
+  postalCode: ModelStringInput
+  siret: ModelStringInput
+  subscriptionDate: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelCompanyDeviceConditionInput {
+  and: [ModelCompanyDeviceConditionInput]
+  associationDate: ModelStringInput
+  companyID: ModelIDInput
+  createdAt: ModelStringInput
+  deviceIMEI: ModelStringInput
+  dissociationDate: ModelStringInput
+  isActive: ModelBooleanInput
+  not: ModelCompanyDeviceConditionInput
+  or: [ModelCompanyDeviceConditionInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelCompanyDeviceFilterInput {
+  and: [ModelCompanyDeviceFilterInput]
+  associationDate: ModelStringInput
+  companyID: ModelIDInput
+  createdAt: ModelStringInput
+  deviceIMEI: ModelStringInput
+  dissociationDate: ModelStringInput
+  id: ModelIDInput
+  isActive: ModelBooleanInput
+  not: ModelCompanyDeviceFilterInput
+  or: [ModelCompanyDeviceFilterInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelCompanyFilterInput {
+  address: ModelStringInput
+  and: [ModelCompanyFilterInput]
+  city: ModelStringInput
+  contact: ModelStringInput
+  countryCode: ModelStringInput
+  createdAt: ModelStringInput
+  creationDate: ModelStringInput
+  email: ModelStringInput
+  fax: ModelStringInput
+  id: ModelIDInput
+  keyedStart: ModelBooleanInput
+  mobile: ModelStringInput
+  name: ModelStringInput
+  not: ModelCompanyFilterInput
+  or: [ModelCompanyFilterInput]
+  phone: ModelStringInput
+  postalCode: ModelStringInput
+  siret: ModelStringInput
+  subscriptionDate: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelDepenseConditionInput {
+  and: [ModelDepenseConditionInput]
+  associateDate: ModelStringInput
+  companyDepensesId: ModelIDInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  montantHT: ModelFloatInput
+  montantTTC: ModelFloatInput
+  not: ModelDepenseConditionInput
+  or: [ModelDepenseConditionInput]
+  prestataire: ModelStringInput
+  produit: ModelStringInput
+  qte: ModelIntInput
+  typeDepenseId: ModelIDInput
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+  ville: ModelStringInput
+}
+
+input ModelDepenseFilterInput {
+  and: [ModelDepenseFilterInput]
+  associateDate: ModelStringInput
+  companyDepensesId: ModelIDInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  id: ModelIDInput
+  montantHT: ModelFloatInput
+  montantTTC: ModelFloatInput
+  not: ModelDepenseFilterInput
+  or: [ModelDepenseFilterInput]
+  prestataire: ModelStringInput
+  produit: ModelStringInput
+  qte: ModelIntInput
+  typeDepenseId: ModelIDInput
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+  ville: ModelStringInput
+}
+
+input ModelDeviceConditionInput {
+  and: [ModelDeviceConditionInput]
+  cid: ModelStringInput
+  createdAt: ModelStringInput
+  deviceVehicleImmat: ModelStringInput
+  device_type_id: ModelIntInput
+  enabled: ModelBooleanInput
+  flespi_id: ModelIntInput
+  media_rotate: ModelStringInput
+  media_ttl: ModelStringInput
+  messages_rotate: ModelStringInput
+  messages_ttl: ModelStringInput
+  name: ModelStringInput
+  not: ModelDeviceConditionInput
+  or: [ModelDeviceConditionInput]
+  protocolId: ModelIntInput
+  sim: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelDeviceFilterInput {
+  and: [ModelDeviceFilterInput]
+  cid: ModelStringInput
+  createdAt: ModelStringInput
+  deviceVehicleImmat: ModelStringInput
+  device_type_id: ModelIntInput
+  enabled: ModelBooleanInput
+  flespi_id: ModelIntInput
+  id: ModelIDInput
+  imei: ModelStringInput
+  media_rotate: ModelStringInput
+  media_ttl: ModelStringInput
+  messages_rotate: ModelStringInput
+  messages_ttl: ModelStringInput
+  name: ModelStringInput
+  not: ModelDeviceFilterInput
+  or: [ModelDeviceFilterInput]
+  protocolId: ModelIntInput
+  sim: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelDriverConditionInput {
+  address: ModelStringInput
+  agencyId: ModelStringInput
+  and: [ModelDriverConditionInput]
+  birthDate: ModelStringInput
+  cdc: ModelStringInput
+  code: ModelStringInput
+  comment: ModelStringInput
+  companyDriversId: ModelIDInput
+  createdAt: ModelStringInput
+  driverKey: ModelStringInput
+  drivingLicenseNumber: ModelStringInput
+  drivingLicenseType: ModelStringInput
+  email: ModelStringInput
+  firstname: ModelStringInput
+  fullname: ModelStringInput
+  hiringDate: ModelStringInput
+  job: ModelStringInput
+  lastModificationDate: ModelStringInput
+  lastname: ModelStringInput
+  mobile: ModelStringInput
+  nni: ModelStringInput
+  not: ModelDriverConditionInput
+  or: [ModelDriverConditionInput]
+  password: ModelStringInput
+  pdm: ModelStringInput
+  updatedAt: ModelStringInput
+  username: ModelStringInput
+}
+
+input ModelDriverFilterInput {
+  address: ModelStringInput
+  agencyId: ModelStringInput
+  and: [ModelDriverFilterInput]
+  birthDate: ModelStringInput
+  cdc: ModelStringInput
+  code: ModelStringInput
+  comment: ModelStringInput
+  companyDriversId: ModelIDInput
+  createdAt: ModelStringInput
+  driverKey: ModelStringInput
+  drivingLicenseNumber: ModelStringInput
+  drivingLicenseType: ModelStringInput
+  email: ModelStringInput
+  firstname: ModelStringInput
+  fullname: ModelStringInput
+  hiringDate: ModelStringInput
+  id: ModelIDInput
+  job: ModelStringInput
+  lastModificationDate: ModelStringInput
+  lastname: ModelStringInput
+  mobile: ModelStringInput
+  nni: ModelStringInput
+  not: ModelDriverFilterInput
+  or: [ModelDriverFilterInput]
+  password: ModelStringInput
+  pdm: ModelStringInput
+  sub: ModelStringInput
+  updatedAt: ModelStringInput
+  username: ModelStringInput
+}
+
+input ModelDvDConditionInput {
+  and: [ModelDvDConditionInput]
+  assignmentDate: ModelStringInput
+  createdAt: ModelStringInput
+  dvDCompanyId: ModelIDInput
+  dvDDriverSub: ModelStringInput
+  dvDVehicleImmat: ModelStringInput
+  not: ModelDvDConditionInput
+  or: [ModelDvDConditionInput]
+  unassignmentDate: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelDvDFilterInput {
+  and: [ModelDvDFilterInput]
+  assignmentDate: ModelStringInput
+  createdAt: ModelStringInput
+  dvDCompanyId: ModelIDInput
+  dvDDriverSub: ModelStringInput
+  dvDVehicleImmat: ModelStringInput
+  id: ModelIDInput
+  not: ModelDvDFilterInput
+  or: [ModelDvDFilterInput]
+  unassignmentDate: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelFloatInput {
+  attributeExists: Boolean
+  attributeType: ModelAttributeTypes
+  between: [Float]
+  eq: Float
+  ge: Float
+  gt: Float
+  le: Float
+  lt: Float
+  ne: Float
+}
+
+input ModelIDInput {
+  attributeExists: Boolean
+  attributeType: ModelAttributeTypes
+  beginsWith: ID
+  between: [ID]
+  contains: ID
+  eq: ID
+  ge: ID
+  gt: ID
+  le: ID
+  lt: ID
+  ne: ID
+  notContains: ID
+  size: ModelSizeInput
+}
+
+input ModelIntInput {
+  attributeExists: Boolean
+  attributeType: ModelAttributeTypes
+  between: [Int]
+  eq: Int
+  ge: Int
+  gt: Int
+  le: Int
+  lt: Int
+  ne: Int
+}
+
+input ModelLabelsCollectionConditionInput {
+  and: [ModelLabelsCollectionConditionInput]
+  createdAt: ModelStringInput
+  label: ModelStringInput
+  not: ModelLabelsCollectionConditionInput
+  or: [ModelLabelsCollectionConditionInput]
+  type: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelLabelsCollectionFilterInput {
+  and: [ModelLabelsCollectionFilterInput]
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  key: ModelStringInput
+  label: ModelStringInput
+  not: ModelLabelsCollectionFilterInput
+  or: [ModelLabelsCollectionFilterInput]
+  type: ModelStringInput
+  updatedAt: ModelStringInput
+}
+
+input ModelMaintenanceConditionInput {
+  alertDate: ModelStringInput
+  and: [ModelMaintenanceConditionInput]
+  companyMaintenancesId: ModelIDInput
+  cost: ModelFloatInput
+  createdAt: ModelStringInput
+  creationDate: ModelStringInput
+  email: ModelStringInput
+  lastModificationDate: ModelStringInput
+  not: ModelMaintenanceConditionInput
+  notes: ModelStringInput
+  operationType: ModelMaintenanceOperationTypeInput
+  or: [ModelMaintenanceConditionInput]
+  reminderDays: ModelIntInput
+  status: ModelMaintenanceStatusInput
+  updatedAt: ModelStringInput
+  vehicleMaintenancesImmat: ModelStringInput
+}
+
+input ModelMaintenanceFilterInput {
+  alertDate: ModelStringInput
+  and: [ModelMaintenanceFilterInput]
+  companyMaintenancesId: ModelIDInput
+  cost: ModelFloatInput
+  createdAt: ModelStringInput
+  creationDate: ModelStringInput
+  email: ModelStringInput
+  id: ModelIDInput
+  lastModificationDate: ModelStringInput
+  not: ModelMaintenanceFilterInput
+  notes: ModelStringInput
+  operationType: ModelMaintenanceOperationTypeInput
+  or: [ModelMaintenanceFilterInput]
+  reminderDays: ModelIntInput
+  status: ModelMaintenanceStatusInput
+  updatedAt: ModelStringInput
+  vehicleMaintenancesImmat: ModelStringInput
+}
+
+input ModelMaintenanceOperationTypeInput {
+  eq: MaintenanceOperationType
+  ne: MaintenanceOperationType
+}
+
+input ModelMaintenanceStatusInput {
+  eq: MaintenanceStatus
+  ne: MaintenanceStatus
+}
+
+input ModelPoiConditionInput {
+  adress: ModelStringInput
+  and: [ModelPoiConditionInput]
+  companyPoisId: ModelIDInput
+  createdAt: ModelStringInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  name: ModelStringInput
+  not: ModelPoiConditionInput
+  or: [ModelPoiConditionInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelPoiFilterInput {
+  adress: ModelStringInput
+  and: [ModelPoiFilterInput]
+  companyPoisId: ModelIDInput
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  name: ModelStringInput
+  not: ModelPoiFilterInput
+  or: [ModelPoiFilterInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelProcessorInput {
+  eq: Processor
+  ne: Processor
+}
+
+input ModelSizeInput {
+  between: [Int]
+  eq: Int
+  ge: Int
+  gt: Int
+  le: Int
+  lt: Int
+  ne: Int
+}
+
+input ModelStringInput {
+  attributeExists: Boolean
+  attributeType: ModelAttributeTypes
+  beginsWith: String
+  between: [String]
+  contains: String
+  eq: String
+  ge: String
+  gt: String
+  le: String
+  lt: String
+  ne: String
+  notContains: String
+  size: ModelSizeInput
+}
+
+input ModelStringKeyConditionInput {
+  beginsWith: String
+  between: [String]
+  eq: String
+  ge: String
+  gt: String
+  le: String
+  lt: String
+}
+
+input ModelSubscriptionAlertDefinitionFilterInput {
+  and: [ModelSubscriptionAlertDefinitionFilterInput]
+  calculator: ModelSubscriptionIntInput
+  createdAt: ModelSubscriptionStringInput
+  description: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  isFlespi: ModelSubscriptionBooleanInput
+  key: ModelSubscriptionStringInput
+  label: ModelSubscriptionStringInput
+  or: [ModelSubscriptionAlertDefinitionFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+  variables: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionAlertFilterInput {
+  alertCompanyId: ModelSubscriptionIDInput
+  alertZoneId: ModelSubscriptionIDInput
+  and: [ModelSubscriptionAlertFilterInput]
+  byMail: ModelSubscriptionBooleanInput
+  bySms: ModelSubscriptionBooleanInput
+  byWhatsapp: ModelSubscriptionBooleanInput
+  createdAt: ModelSubscriptionStringInput
+  disabled: ModelSubscriptionBooleanInput
+  emailTemplate: ModelSubscriptionStringInput
+  emails: ModelSubscriptionStringInput
+  extra: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  instantaneous: ModelSubscriptionBooleanInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionAlertFilterInput]
+  phones: ModelSubscriptionStringInput
+  reportFrequency: ModelSubscriptionStringInput
+  sentToDriver: ModelSubscriptionBooleanInput
+  smsTemplate: ModelSubscriptionStringInput
+  type: ModelSubscriptionStringInput
+  typeLabel: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionAlertHistoryFilterInput {
+  alertHistoryCompanyId: ModelSubscriptionIDInput
+  alertHistoryConfigId: ModelSubscriptionIDInput
+  alertHistoryDriverSub: ModelSubscriptionStringInput
+  alertHistoryVehicleImmat: ModelSubscriptionStringInput
+  and: [ModelSubscriptionAlertHistoryFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  data: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  imei: ModelSubscriptionStringInput
+  or: [ModelSubscriptionAlertHistoryFilterInput]
+  timestamp: ModelSubscriptionIntInput
+  type: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionBooleanInput {
+  eq: Boolean
+  ne: Boolean
+}
+
+input ModelSubscriptionCompanyDeviceFilterInput {
+  and: [ModelSubscriptionCompanyDeviceFilterInput]
+  associationDate: ModelSubscriptionStringInput
+  companyID: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  deviceIMEI: ModelSubscriptionStringInput
+  dissociationDate: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  isActive: ModelSubscriptionBooleanInput
+  or: [ModelSubscriptionCompanyDeviceFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionCompanyFilterInput {
+  address: ModelSubscriptionStringInput
+  and: [ModelSubscriptionCompanyFilterInput]
+  city: ModelSubscriptionStringInput
+  contact: ModelSubscriptionStringInput
+  countryCode: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  creationDate: ModelSubscriptionStringInput
+  email: ModelSubscriptionStringInput
+  fax: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  keyedStart: ModelSubscriptionBooleanInput
+  mobile: ModelSubscriptionStringInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionCompanyFilterInput]
+  phone: ModelSubscriptionStringInput
+  postalCode: ModelSubscriptionStringInput
+  siret: ModelSubscriptionStringInput
+  subscriptionDate: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionDepenseFilterInput {
+  and: [ModelSubscriptionDepenseFilterInput]
+  associateDate: ModelSubscriptionStringInput
+  companyDepensesId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  description: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  montantHT: ModelSubscriptionFloatInput
+  montantTTC: ModelSubscriptionFloatInput
+  or: [ModelSubscriptionDepenseFilterInput]
+  prestataire: ModelSubscriptionStringInput
+  produit: ModelSubscriptionStringInput
+  qte: ModelSubscriptionIntInput
+  typeDepenseId: ModelSubscriptionIDInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleImmat: ModelSubscriptionStringInput
+  ville: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionDeviceFilterInput {
+  and: [ModelSubscriptionDeviceFilterInput]
+  cid: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  deviceVehicleImmat: ModelSubscriptionStringInput
+  device_type_id: ModelSubscriptionIntInput
+  enabled: ModelSubscriptionBooleanInput
+  flespi_id: ModelSubscriptionIntInput
+  id: ModelSubscriptionIDInput
+  imei: ModelSubscriptionStringInput
+  media_rotate: ModelSubscriptionStringInput
+  media_ttl: ModelSubscriptionStringInput
+  messages_rotate: ModelSubscriptionStringInput
+  messages_ttl: ModelSubscriptionStringInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionDeviceFilterInput]
+  protocolId: ModelSubscriptionIntInput
+  sim: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionDriverFilterInput {
+  address: ModelSubscriptionStringInput
+  agencyId: ModelSubscriptionStringInput
+  and: [ModelSubscriptionDriverFilterInput]
+  birthDate: ModelSubscriptionStringInput
+  cdc: ModelSubscriptionStringInput
+  code: ModelSubscriptionStringInput
+  comment: ModelSubscriptionStringInput
+  companyDriversId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  driverKey: ModelSubscriptionStringInput
+  drivingLicenseNumber: ModelSubscriptionStringInput
+  drivingLicenseType: ModelSubscriptionStringInput
+  email: ModelSubscriptionStringInput
+  firstname: ModelSubscriptionStringInput
+  fullname: ModelSubscriptionStringInput
+  hiringDate: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  job: ModelSubscriptionStringInput
+  lastModificationDate: ModelSubscriptionStringInput
+  lastname: ModelSubscriptionStringInput
+  mobile: ModelSubscriptionStringInput
+  nni: ModelSubscriptionStringInput
+  or: [ModelSubscriptionDriverFilterInput]
+  password: ModelSubscriptionStringInput
+  pdm: ModelSubscriptionStringInput
+  sub: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+  username: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionDvDFilterInput {
+  and: [ModelSubscriptionDvDFilterInput]
+  assignmentDate: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  dvDCompanyId: ModelSubscriptionIDInput
+  dvDDriverSub: ModelSubscriptionStringInput
+  dvDVehicleImmat: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  or: [ModelSubscriptionDvDFilterInput]
+  unassignmentDate: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionFloatInput {
+  between: [Float]
+  eq: Float
+  ge: Float
+  gt: Float
+  in: [Float]
+  le: Float
+  lt: Float
+  ne: Float
+  notIn: [Float]
+}
+
+input ModelSubscriptionIDInput {
+  beginsWith: ID
+  between: [ID]
+  contains: ID
+  eq: ID
+  ge: ID
+  gt: ID
+  in: [ID]
+  le: ID
+  lt: ID
+  ne: ID
+  notContains: ID
+  notIn: [ID]
+}
+
+input ModelSubscriptionIntInput {
+  between: [Int]
+  eq: Int
+  ge: Int
+  gt: Int
+  in: [Int]
+  le: Int
+  lt: Int
+  ne: Int
+  notIn: [Int]
+}
+
+input ModelSubscriptionLabelsCollectionFilterInput {
+  and: [ModelSubscriptionLabelsCollectionFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  key: ModelSubscriptionStringInput
+  label: ModelSubscriptionStringInput
+  or: [ModelSubscriptionLabelsCollectionFilterInput]
+  type: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionMaintenanceFilterInput {
+  alertDate: ModelSubscriptionStringInput
+  and: [ModelSubscriptionMaintenanceFilterInput]
+  companyMaintenancesId: ModelSubscriptionIDInput
+  cost: ModelSubscriptionFloatInput
+  createdAt: ModelSubscriptionStringInput
+  creationDate: ModelSubscriptionStringInput
+  email: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  lastModificationDate: ModelSubscriptionStringInput
+  notes: ModelSubscriptionStringInput
+  operationType: ModelSubscriptionStringInput
+  or: [ModelSubscriptionMaintenanceFilterInput]
+  reminderDays: ModelSubscriptionIntInput
+  status: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleMaintenancesImmat: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionPoiFilterInput {
+  adress: ModelSubscriptionStringInput
+  and: [ModelSubscriptionPoiFilterInput]
+  companyPoisId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  lat: ModelSubscriptionFloatInput
+  lng: ModelSubscriptionFloatInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionPoiFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionStringInput {
+  beginsWith: String
+  between: [String]
+  contains: String
+  eq: String
+  ge: String
+  gt: String
+  in: [String]
+  le: String
+  lt: String
+  ne: String
+  notContains: String
+  notIn: [String]
+}
+
+input ModelSubscriptionTagFilterInput {
+  and: [ModelSubscriptionTagFilterInput]
+  color: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  description: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionTagFilterInput]
+  tagCompanyId: ModelSubscriptionIDInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionTrameFilterInput {
+  address: ModelSubscriptionStringInput
+  and: [ModelSubscriptionTrameFilterInput]
+  azimut: ModelSubscriptionFloatInput
+  companyId: ModelSubscriptionStringInput
+  companyTramesId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  distance: ModelSubscriptionFloatInput
+  driverFullName: ModelSubscriptionStringInput
+  fuel: ModelSubscriptionStringInput
+  ibuttonCode: ModelSubscriptionStringInput
+  id: ModelSubscriptionStringInput
+  immobilisation: ModelSubscriptionBooleanInput
+  lat: ModelSubscriptionFloatInput
+  lng: ModelSubscriptionFloatInput
+  or: [ModelSubscriptionTrameFilterInput]
+  processor: ModelSubscriptionStringInput
+  speed: ModelSubscriptionFloatInput
+  state: ModelSubscriptionStringInput
+  timestamp: ModelSubscriptionStringInput
+  trameDriverSub: ModelSubscriptionStringInput
+  trameVehicleImmat: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleBrandName: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionTypeDepenseFilterInput {
+  and: [ModelSubscriptionTypeDepenseFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  description: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionTypeDepenseFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionUserFilterInput {
+  accessExpiresAt: ModelSubscriptionStringInput
+  accessType: ModelSubscriptionStringInput
+  accessibleVehicles: ModelSubscriptionStringInput
+  address: ModelSubscriptionStringInput
+  and: [ModelSubscriptionUserFilterInput]
+  applicationVersion: ModelSubscriptionStringInput
+  beginDate: ModelSubscriptionStringInput
+  companyUsersId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  dispatcher: ModelSubscriptionStringInput
+  endDate: ModelSubscriptionStringInput
+  firstname: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  languageCode: ModelSubscriptionStringInput
+  lastModificationDate: ModelSubscriptionStringInput
+  lastname: ModelSubscriptionStringInput
+  mappingId: ModelSubscriptionStringInput
+  mobile: ModelSubscriptionStringInput
+  or: [ModelSubscriptionUserFilterInput]
+  password: ModelSubscriptionStringInput
+  role: ModelSubscriptionStringInput
+  showReport: ModelSubscriptionStringInput
+  sub: ModelSubscriptionStringInput
+  themeId: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+  username: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleAlertStateFilterInput {
+  alert: ModelSubscriptionStringInput
+  and: [ModelSubscriptionVehicleAlertStateFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionStringInput
+  or: [ModelSubscriptionVehicleAlertStateFilterInput]
+  state: ModelSubscriptionStringInput
+  timestamp: ModelSubscriptionIntInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleAlertStateVehicleImmat: ModelSubscriptionStringInput
+  vehicleAlertStateZoneId: ModelSubscriptionIDInput
+}
+
+input ModelSubscriptionVehicleAlertsFilterInput {
+  alertId: ModelSubscriptionIDInput
+  and: [ModelSubscriptionVehicleAlertsFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  isFlespi: ModelSubscriptionBooleanInput
+  or: [ModelSubscriptionVehicleAlertsFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+  vehicleImmat: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleBrandFilterInput {
+  and: [ModelSubscriptionVehicleBrandFilterInput]
+  brandName: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  or: [ModelSubscriptionVehicleBrandFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+  vehicleBrandModelsBrandName: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleCategoryFilterInput {
+  and: [ModelSubscriptionVehicleCategoryFilterInput]
+  category: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  description: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  or: [ModelSubscriptionVehicleCategoryFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleFilterInput {
+  AWN_VIN: ModelSubscriptionStringInput
+  AWN_code_moteur: ModelSubscriptionStringInput
+  AWN_collection: ModelSubscriptionStringInput
+  AWN_consommation_ex_urbaine: ModelSubscriptionStringInput
+  AWN_consommation_mixte: ModelSubscriptionStringInput
+  AWN_consommation_urbaine: ModelSubscriptionStringInput
+  AWN_date_30: ModelSubscriptionStringInput
+  AWN_date_cg: ModelSubscriptionStringInput
+  AWN_depollution: ModelSubscriptionStringInput
+  AWN_emission_co_2_prf: ModelSubscriptionStringInput
+  AWN_energie_code: ModelSubscriptionStringInput
+  AWN_generation: ModelSubscriptionStringInput
+  AWN_genre: ModelSubscriptionStringInput
+  AWN_group: ModelSubscriptionStringInput
+  AWN_k_type: ModelSubscriptionStringInput
+  AWN_label: ModelSubscriptionStringInput
+  AWN_max_speed: ModelSubscriptionStringInput
+  AWN_mode_injection: ModelSubscriptionStringInput
+  AWN_model: ModelSubscriptionStringInput
+  AWN_model_image: ModelSubscriptionStringInput
+  AWN_nbr_cylindre_energie: ModelSubscriptionStringInput
+  AWN_nbr_cylindres: ModelSubscriptionStringInput
+  AWN_nbr_places: ModelSubscriptionStringInput
+  AWN_nbr_portes: ModelSubscriptionStringInput
+  AWN_nbr_soupapes: ModelSubscriptionStringInput
+  AWN_nbr_vitesses: ModelSubscriptionStringInput
+  AWN_niveau_de_bruit_au_ralenti: ModelSubscriptionStringInput
+  AWN_nom_commercial: ModelSubscriptionStringInput
+  AWN_numero_de_serie: ModelSubscriptionStringInput
+  AWN_poids_max_autorise: ModelSubscriptionStringInput
+  AWN_poids_total: ModelSubscriptionStringInput
+  AWN_poids_total_roulant: ModelSubscriptionStringInput
+  AWN_poids_vide: ModelSubscriptionStringInput
+  AWN_propulsion: ModelSubscriptionStringInput
+  AWN_puissance_KW: ModelSubscriptionStringInput
+  AWN_segment: ModelSubscriptionStringInput
+  AWN_turbo_compressor: ModelSubscriptionStringInput
+  AWN_type_frein: ModelSubscriptionStringInput
+  AWN_type_injection: ModelSubscriptionStringInput
+  AWN_url_image: ModelSubscriptionStringInput
+  AWN_version: ModelSubscriptionStringInput
+  AWN_vitesse_moteur: ModelSubscriptionStringInput
+  VIN: ModelSubscriptionStringInput
+  ad_blue: ModelSubscriptionStringInput
+  ad_green: ModelSubscriptionStringInput
+  and: [ModelSubscriptionVehicleFilterInput]
+  boiteVitesse: ModelSubscriptionStringInput
+  canMileage: ModelSubscriptionStringInput
+  carrosserie: ModelSubscriptionStringInput
+  cl_environ_prf: ModelSubscriptionStringInput
+  co2: ModelSubscriptionStringInput
+  code: ModelSubscriptionStringInput
+  code_certificat_qualite_air: ModelSubscriptionStringInput
+  companyVehiclesId: ModelSubscriptionIDInput
+  consumption: ModelSubscriptionStringInput
+  couleur: ModelSubscriptionStringInput
+  counterValue: ModelSubscriptionStringInput
+  createdAt: ModelSubscriptionStringInput
+  dateMiseEnCirculation: ModelSubscriptionStringInput
+  depollution: ModelSubscriptionStringInput
+  emissions: ModelSubscriptionStringInput
+  energie: ModelSubscriptionStringInput
+  fuelType: ModelSubscriptionStringInput
+  gefcoSend: ModelSubscriptionStringInput
+  icon: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  immat: ModelSubscriptionStringInput
+  immatriculation: ModelSubscriptionStringInput
+  installationPrecautions: ModelSubscriptionStringInput
+  k_type: ModelSubscriptionStringInput
+  kilometerPrice: ModelSubscriptionStringInput
+  kilometerage: ModelSubscriptionStringInput
+  kilometerageDay: ModelSubscriptionStringInput
+  kilometerageLastUpdate: ModelSubscriptionStringInput
+  kilometerageStart: ModelSubscriptionStringInput
+  lastModificationDate: ModelSubscriptionStringInput
+  locations: ModelSubscriptionStringInput
+  marque: ModelSubscriptionStringInput
+  marque_id: ModelSubscriptionStringInput
+  maxSpeed: ModelSubscriptionStringInput
+  modele_id: ModelSubscriptionStringInput
+  nomVehicule: ModelSubscriptionStringInput
+  or: [ModelSubscriptionVehicleFilterInput]
+  puissanceDin: ModelSubscriptionStringInput
+  puissanceFiscale: ModelSubscriptionStringInput
+  realImmat: ModelSubscriptionStringInput
+  rollingTimeDay: ModelSubscriptionStringInput
+  rollingTimeStart: ModelSubscriptionStringInput
+  seatCount: ModelSubscriptionStringInput
+  tankCapacity: ModelSubscriptionStringInput
+  timeRunning: ModelSubscriptionStringInput
+  type_mine: ModelSubscriptionStringInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleBrandBrandName: ModelSubscriptionStringInput
+  vehicleDeviceImei: ModelSubscriptionStringInput
+  vehicleModeleId: ModelSubscriptionIDInput
+  vehicleVehicleCategoryId: ModelSubscriptionIDInput
+  version: ModelSubscriptionStringInput
+  year: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleModelFilterInput {
+  and: [ModelSubscriptionVehicleModelFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  modele: ModelSubscriptionStringInput
+  or: [ModelSubscriptionVehicleModelFilterInput]
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionVehicleTagsFilterInput {
+  and: [ModelSubscriptionVehicleTagsFilterInput]
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  or: [ModelSubscriptionVehicleTagsFilterInput]
+  tagId: ModelSubscriptionIDInput
+  updatedAt: ModelSubscriptionStringInput
+  vehicleImmat: ModelSubscriptionStringInput
+}
+
+input ModelSubscriptionZoneFilterInput {
+  adress: ModelSubscriptionStringInput
+  and: [ModelSubscriptionZoneFilterInput]
+  companyZonesId: ModelSubscriptionIDInput
+  createdAt: ModelSubscriptionStringInput
+  id: ModelSubscriptionIDInput
+  lat: ModelSubscriptionFloatInput
+  lng: ModelSubscriptionFloatInput
+  name: ModelSubscriptionStringInput
+  or: [ModelSubscriptionZoneFilterInput]
+  radius: ModelSubscriptionIntInput
+  updatedAt: ModelSubscriptionStringInput
+}
+
+input ModelTagConditionInput {
+  and: [ModelTagConditionInput]
+  color: ModelStringInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  name: ModelStringInput
+  not: ModelTagConditionInput
+  or: [ModelTagConditionInput]
+  tagCompanyId: ModelIDInput
+  updatedAt: ModelStringInput
+}
+
+input ModelTagFilterInput {
+  and: [ModelTagFilterInput]
+  color: ModelStringInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  id: ModelIDInput
+  name: ModelStringInput
+  not: ModelTagFilterInput
+  or: [ModelTagFilterInput]
+  tagCompanyId: ModelIDInput
+  updatedAt: ModelStringInput
+}
+
+input ModelTrameConditionInput {
+  address: ModelStringInput
+  and: [ModelTrameConditionInput]
+  azimut: ModelFloatInput
+  companyId: ModelStringInput
+  companyTramesId: ModelIDInput
+  createdAt: ModelStringInput
+  distance: ModelFloatInput
+  driverFullName: ModelStringInput
+  fuel: ModelStringInput
+  ibuttonCode: ModelStringInput
+  immobilisation: ModelBooleanInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  not: ModelTrameConditionInput
+  or: [ModelTrameConditionInput]
+  processor: ModelProcessorInput
+  speed: ModelFloatInput
+  state: ModelStringInput
+  timestamp: ModelStringInput
+  trameDriverSub: ModelStringInput
+  trameVehicleImmat: ModelStringInput
+  updatedAt: ModelStringInput
+  vehicleBrandName: ModelStringInput
+}
+
+input ModelTrameFilterInput {
+  address: ModelStringInput
+  and: [ModelTrameFilterInput]
+  azimut: ModelFloatInput
+  companyId: ModelStringInput
+  companyTramesId: ModelIDInput
+  createdAt: ModelStringInput
+  distance: ModelFloatInput
+  driverFullName: ModelStringInput
+  fuel: ModelStringInput
+  ibuttonCode: ModelStringInput
+  id: ModelStringInput
+  immobilisation: ModelBooleanInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  not: ModelTrameFilterInput
+  or: [ModelTrameFilterInput]
+  processor: ModelProcessorInput
+  speed: ModelFloatInput
+  state: ModelStringInput
+  timestamp: ModelStringInput
+  trameDriverSub: ModelStringInput
+  trameVehicleImmat: ModelStringInput
+  updatedAt: ModelStringInput
+  vehicleBrandName: ModelStringInput
+}
+
+input ModelTypeDepenseConditionInput {
+  and: [ModelTypeDepenseConditionInput]
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  name: ModelStringInput
+  not: ModelTypeDepenseConditionInput
+  or: [ModelTypeDepenseConditionInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelTypeDepenseFilterInput {
+  and: [ModelTypeDepenseFilterInput]
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  id: ModelIDInput
+  name: ModelStringInput
+  not: ModelTypeDepenseFilterInput
+  or: [ModelTypeDepenseFilterInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelUserConditionInput {
+  accessExpiresAt: ModelStringInput
+  accessType: ModelAccessTypeInput
+  accessibleVehicles: ModelStringInput
+  address: ModelStringInput
+  and: [ModelUserConditionInput]
+  applicationVersion: ModelStringInput
+  beginDate: ModelStringInput
+  companyUsersId: ModelIDInput
+  createdAt: ModelStringInput
+  dispatcher: ModelStringInput
+  endDate: ModelStringInput
+  firstname: ModelStringInput
+  languageCode: ModelStringInput
+  lastModificationDate: ModelStringInput
+  lastname: ModelStringInput
+  mappingId: ModelStringInput
+  mobile: ModelStringInput
+  not: ModelUserConditionInput
+  or: [ModelUserConditionInput]
+  password: ModelStringInput
+  role: ModelUserRoleInput
+  showReport: ModelStringInput
+  themeId: ModelStringInput
+  updatedAt: ModelStringInput
+  username: ModelStringInput
+}
+
+input ModelUserFilterInput {
+  accessExpiresAt: ModelStringInput
+  accessType: ModelAccessTypeInput
+  accessibleVehicles: ModelStringInput
+  address: ModelStringInput
+  and: [ModelUserFilterInput]
+  applicationVersion: ModelStringInput
+  beginDate: ModelStringInput
+  companyUsersId: ModelIDInput
+  createdAt: ModelStringInput
+  dispatcher: ModelStringInput
+  endDate: ModelStringInput
+  firstname: ModelStringInput
+  id: ModelIDInput
+  languageCode: ModelStringInput
+  lastModificationDate: ModelStringInput
+  lastname: ModelStringInput
+  mappingId: ModelStringInput
+  mobile: ModelStringInput
+  not: ModelUserFilterInput
+  or: [ModelUserFilterInput]
+  password: ModelStringInput
+  role: ModelUserRoleInput
+  showReport: ModelStringInput
+  sub: ModelStringInput
+  themeId: ModelStringInput
+  updatedAt: ModelStringInput
+  username: ModelStringInput
+}
+
+input ModelUserRoleInput {
+  eq: UserRole
+  ne: UserRole
+}
+
+input ModelVehicleAlertStateConditionInput {
+  alert: ModelAlertTypeInput
+  and: [ModelVehicleAlertStateConditionInput]
+  createdAt: ModelStringInput
+  not: ModelVehicleAlertStateConditionInput
+  or: [ModelVehicleAlertStateConditionInput]
+  state: ModelStringInput
+  timestamp: ModelIntInput
+  updatedAt: ModelStringInput
+  vehicleAlertStateVehicleImmat: ModelStringInput
+  vehicleAlertStateZoneId: ModelIDInput
+}
+
+input ModelVehicleAlertStateFilterInput {
+  alert: ModelAlertTypeInput
+  and: [ModelVehicleAlertStateFilterInput]
+  createdAt: ModelStringInput
+  id: ModelStringInput
+  not: ModelVehicleAlertStateFilterInput
+  or: [ModelVehicleAlertStateFilterInput]
+  state: ModelStringInput
+  timestamp: ModelIntInput
+  updatedAt: ModelStringInput
+  vehicleAlertStateVehicleImmat: ModelStringInput
+  vehicleAlertStateZoneId: ModelIDInput
+}
+
+input ModelVehicleAlertsConditionInput {
+  alertId: ModelIDInput
+  and: [ModelVehicleAlertsConditionInput]
+  createdAt: ModelStringInput
+  isFlespi: ModelBooleanInput
+  not: ModelVehicleAlertsConditionInput
+  or: [ModelVehicleAlertsConditionInput]
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+}
+
+input ModelVehicleAlertsFilterInput {
+  alertId: ModelIDInput
+  and: [ModelVehicleAlertsFilterInput]
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  isFlespi: ModelBooleanInput
+  not: ModelVehicleAlertsFilterInput
+  or: [ModelVehicleAlertsFilterInput]
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+}
+
+input ModelVehicleBrandConditionInput {
+  and: [ModelVehicleBrandConditionInput]
+  createdAt: ModelStringInput
+  not: ModelVehicleBrandConditionInput
+  or: [ModelVehicleBrandConditionInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelVehicleBrandFilterInput {
+  and: [ModelVehicleBrandFilterInput]
+  brandName: ModelStringInput
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  not: ModelVehicleBrandFilterInput
+  or: [ModelVehicleBrandFilterInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelVehicleCategoryConditionInput {
+  and: [ModelVehicleCategoryConditionInput]
+  category: ModelStringInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  not: ModelVehicleCategoryConditionInput
+  or: [ModelVehicleCategoryConditionInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelVehicleCategoryFilterInput {
+  and: [ModelVehicleCategoryFilterInput]
+  category: ModelStringInput
+  createdAt: ModelStringInput
+  description: ModelStringInput
+  id: ModelIDInput
+  not: ModelVehicleCategoryFilterInput
+  or: [ModelVehicleCategoryFilterInput]
+  updatedAt: ModelStringInput
+}
+
+input ModelVehicleConditionInput {
+  AWN_VIN: ModelStringInput
+  AWN_code_moteur: ModelStringInput
+  AWN_collection: ModelStringInput
+  AWN_consommation_ex_urbaine: ModelStringInput
+  AWN_consommation_mixte: ModelStringInput
+  AWN_consommation_urbaine: ModelStringInput
+  AWN_date_30: ModelStringInput
+  AWN_date_cg: ModelStringInput
+  AWN_depollution: ModelStringInput
+  AWN_emission_co_2_prf: ModelStringInput
+  AWN_energie_code: ModelStringInput
+  AWN_generation: ModelStringInput
+  AWN_genre: ModelStringInput
+  AWN_group: ModelStringInput
+  AWN_k_type: ModelStringInput
+  AWN_label: ModelStringInput
+  AWN_max_speed: ModelStringInput
+  AWN_mode_injection: ModelStringInput
+  AWN_model: ModelStringInput
+  AWN_model_image: ModelStringInput
+  AWN_nbr_cylindre_energie: ModelStringInput
+  AWN_nbr_cylindres: ModelStringInput
+  AWN_nbr_places: ModelStringInput
+  AWN_nbr_portes: ModelStringInput
+  AWN_nbr_soupapes: ModelStringInput
+  AWN_nbr_vitesses: ModelStringInput
+  AWN_niveau_de_bruit_au_ralenti: ModelStringInput
+  AWN_nom_commercial: ModelStringInput
+  AWN_numero_de_serie: ModelStringInput
+  AWN_poids_max_autorise: ModelStringInput
+  AWN_poids_total: ModelStringInput
+  AWN_poids_total_roulant: ModelStringInput
+  AWN_poids_vide: ModelStringInput
+  AWN_propulsion: ModelStringInput
+  AWN_puissance_KW: ModelStringInput
+  AWN_segment: ModelStringInput
+  AWN_turbo_compressor: ModelStringInput
+  AWN_type_frein: ModelStringInput
+  AWN_type_injection: ModelStringInput
+  AWN_url_image: ModelStringInput
+  AWN_version: ModelStringInput
+  AWN_vitesse_moteur: ModelStringInput
+  VIN: ModelStringInput
+  ad_blue: ModelStringInput
+  ad_green: ModelStringInput
+  and: [ModelVehicleConditionInput]
+  boiteVitesse: ModelStringInput
+  canMileage: ModelStringInput
+  carrosserie: ModelStringInput
+  cl_environ_prf: ModelStringInput
+  co2: ModelStringInput
+  code: ModelStringInput
+  code_certificat_qualite_air: ModelStringInput
+  companyVehiclesId: ModelIDInput
+  consumption: ModelStringInput
+  couleur: ModelStringInput
+  counterValue: ModelStringInput
+  createdAt: ModelStringInput
+  dateMiseEnCirculation: ModelStringInput
+  depollution: ModelStringInput
+  emissions: ModelStringInput
+  energie: ModelStringInput
+  fuelType: ModelStringInput
+  gefcoSend: ModelStringInput
+  icon: ModelStringInput
+  immatriculation: ModelStringInput
+  installationPrecautions: ModelStringInput
+  k_type: ModelStringInput
+  kilometerPrice: ModelStringInput
+  kilometerage: ModelStringInput
+  kilometerageDay: ModelStringInput
+  kilometerageLastUpdate: ModelStringInput
+  kilometerageStart: ModelStringInput
+  lastModificationDate: ModelStringInput
+  locations: ModelStringInput
+  marque: ModelStringInput
+  marque_id: ModelStringInput
+  maxSpeed: ModelStringInput
+  modele_id: ModelStringInput
+  nomVehicule: ModelStringInput
+  not: ModelVehicleConditionInput
+  or: [ModelVehicleConditionInput]
+  puissanceDin: ModelStringInput
+  puissanceFiscale: ModelStringInput
+  realImmat: ModelStringInput
+  rollingTimeDay: ModelStringInput
+  rollingTimeStart: ModelStringInput
+  seatCount: ModelStringInput
+  tankCapacity: ModelStringInput
+  timeRunning: ModelStringInput
+  type_mine: ModelStringInput
+  updatedAt: ModelStringInput
+  vehicleBrandBrandName: ModelStringInput
+  vehicleDeviceImei: ModelStringInput
+  vehicleModeleId: ModelIDInput
+  vehicleVehicleCategoryId: ModelIDInput
+  version: ModelStringInput
+  year: ModelStringInput
+}
+
+input ModelVehicleFilterInput {
+  AWN_VIN: ModelStringInput
+  AWN_code_moteur: ModelStringInput
+  AWN_collection: ModelStringInput
+  AWN_consommation_ex_urbaine: ModelStringInput
+  AWN_consommation_mixte: ModelStringInput
+  AWN_consommation_urbaine: ModelStringInput
+  AWN_date_30: ModelStringInput
+  AWN_date_cg: ModelStringInput
+  AWN_depollution: ModelStringInput
+  AWN_emission_co_2_prf: ModelStringInput
+  AWN_energie_code: ModelStringInput
+  AWN_generation: ModelStringInput
+  AWN_genre: ModelStringInput
+  AWN_group: ModelStringInput
+  AWN_k_type: ModelStringInput
+  AWN_label: ModelStringInput
+  AWN_max_speed: ModelStringInput
+  AWN_mode_injection: ModelStringInput
+  AWN_model: ModelStringInput
+  AWN_model_image: ModelStringInput
+  AWN_nbr_cylindre_energie: ModelStringInput
+  AWN_nbr_cylindres: ModelStringInput
+  AWN_nbr_places: ModelStringInput
+  AWN_nbr_portes: ModelStringInput
+  AWN_nbr_soupapes: ModelStringInput
+  AWN_nbr_vitesses: ModelStringInput
+  AWN_niveau_de_bruit_au_ralenti: ModelStringInput
+  AWN_nom_commercial: ModelStringInput
+  AWN_numero_de_serie: ModelStringInput
+  AWN_poids_max_autorise: ModelStringInput
+  AWN_poids_total: ModelStringInput
+  AWN_poids_total_roulant: ModelStringInput
+  AWN_poids_vide: ModelStringInput
+  AWN_propulsion: ModelStringInput
+  AWN_puissance_KW: ModelStringInput
+  AWN_segment: ModelStringInput
+  AWN_turbo_compressor: ModelStringInput
+  AWN_type_frein: ModelStringInput
+  AWN_type_injection: ModelStringInput
+  AWN_url_image: ModelStringInput
+  AWN_version: ModelStringInput
+  AWN_vitesse_moteur: ModelStringInput
+  VIN: ModelStringInput
+  ad_blue: ModelStringInput
+  ad_green: ModelStringInput
+  and: [ModelVehicleFilterInput]
+  boiteVitesse: ModelStringInput
+  canMileage: ModelStringInput
+  carrosserie: ModelStringInput
+  cl_environ_prf: ModelStringInput
+  co2: ModelStringInput
+  code: ModelStringInput
+  code_certificat_qualite_air: ModelStringInput
+  companyVehiclesId: ModelIDInput
+  consumption: ModelStringInput
+  couleur: ModelStringInput
+  counterValue: ModelStringInput
+  createdAt: ModelStringInput
+  dateMiseEnCirculation: ModelStringInput
+  depollution: ModelStringInput
+  emissions: ModelStringInput
+  energie: ModelStringInput
+  fuelType: ModelStringInput
+  gefcoSend: ModelStringInput
+  icon: ModelStringInput
+  id: ModelIDInput
+  immat: ModelStringInput
+  immatriculation: ModelStringInput
+  installationPrecautions: ModelStringInput
+  k_type: ModelStringInput
+  kilometerPrice: ModelStringInput
+  kilometerage: ModelStringInput
+  kilometerageDay: ModelStringInput
+  kilometerageLastUpdate: ModelStringInput
+  kilometerageStart: ModelStringInput
+  lastModificationDate: ModelStringInput
+  locations: ModelStringInput
+  marque: ModelStringInput
+  marque_id: ModelStringInput
+  maxSpeed: ModelStringInput
+  modele_id: ModelStringInput
+  nomVehicule: ModelStringInput
+  not: ModelVehicleFilterInput
+  or: [ModelVehicleFilterInput]
+  puissanceDin: ModelStringInput
+  puissanceFiscale: ModelStringInput
+  realImmat: ModelStringInput
+  rollingTimeDay: ModelStringInput
+  rollingTimeStart: ModelStringInput
+  seatCount: ModelStringInput
+  tankCapacity: ModelStringInput
+  timeRunning: ModelStringInput
+  type_mine: ModelStringInput
+  updatedAt: ModelStringInput
+  vehicleBrandBrandName: ModelStringInput
+  vehicleDeviceImei: ModelStringInput
+  vehicleModeleId: ModelIDInput
+  vehicleVehicleCategoryId: ModelIDInput
+  version: ModelStringInput
+  year: ModelStringInput
+}
+
+input ModelVehicleModelConditionInput {
+  and: [ModelVehicleModelConditionInput]
+  createdAt: ModelStringInput
+  modele: ModelStringInput
+  not: ModelVehicleModelConditionInput
+  or: [ModelVehicleModelConditionInput]
+  updatedAt: ModelStringInput
+  vehicleBrandModelsBrandName: ModelStringInput
+}
+
+input ModelVehicleModelFilterInput {
+  and: [ModelVehicleModelFilterInput]
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  modele: ModelStringInput
+  not: ModelVehicleModelFilterInput
+  or: [ModelVehicleModelFilterInput]
+  updatedAt: ModelStringInput
+  vehicleBrandModelsBrandName: ModelStringInput
+}
+
+input ModelVehicleTagsConditionInput {
+  and: [ModelVehicleTagsConditionInput]
+  createdAt: ModelStringInput
+  not: ModelVehicleTagsConditionInput
+  or: [ModelVehicleTagsConditionInput]
+  tagId: ModelIDInput
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+}
+
+input ModelVehicleTagsFilterInput {
+  and: [ModelVehicleTagsFilterInput]
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  not: ModelVehicleTagsFilterInput
+  or: [ModelVehicleTagsFilterInput]
+  tagId: ModelIDInput
+  updatedAt: ModelStringInput
+  vehicleImmat: ModelStringInput
+}
+
+input ModelZoneConditionInput {
+  adress: ModelStringInput
+  and: [ModelZoneConditionInput]
+  companyZonesId: ModelIDInput
+  createdAt: ModelStringInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  name: ModelStringInput
+  not: ModelZoneConditionInput
+  or: [ModelZoneConditionInput]
+  radius: ModelIntInput
+  updatedAt: ModelStringInput
+}
+
+input ModelZoneFilterInput {
+  adress: ModelStringInput
+  and: [ModelZoneFilterInput]
+  companyZonesId: ModelIDInput
+  createdAt: ModelStringInput
+  id: ModelIDInput
+  lat: ModelFloatInput
+  lng: ModelFloatInput
+  name: ModelStringInput
+  not: ModelZoneFilterInput
+  or: [ModelZoneFilterInput]
+  radius: ModelIntInput
+  updatedAt: ModelStringInput
+}
+
+input S3ObjectInput {
+  bucket: String!
+  key: String!
+  region: String!
+}
+
+input UpdateAlertDefinitionInput {
+  calculator: Int
+  description: String
+  isFlespi: Boolean
+  key: AlertType!
+  label: String
+  variables: [String]
+}
+
+input UpdateAlertHistoryInput {
+  alertHistoryCompanyId: ID
+  alertHistoryConfigId: ID
+  alertHistoryDriverSub: String
+  alertHistoryVehicleImmat: String
+  data: AWSJSON
+  id: ID!
+  imei: String
+  timestamp: AWSTimestamp
+  type: AlertType
+}
+
+input UpdateAlertInput {
+  alertCompanyId: ID
+  alertZoneId: ID
+  byMail: Boolean
+  bySms: Boolean
+  byWhatsapp: Boolean
+  disabled: Boolean
+  emailTemplate: String
+  emails: [String]
+  extra: AWSJSON
+  id: ID!
+  instantaneous: Boolean
+  name: String
+  phones: [String]
+  reportFrequency: AlertFrequency
+  sentToDriver: Boolean
+  smsTemplate: String
+  type: AlertType
+  typeLabel: String
+}
+
+input UpdateCompanyDeviceInput {
+  associationDate: AWSDateTime
+  companyID: ID
+  deviceIMEI: String
+  dissociationDate: AWSDateTime
+  id: ID!
+  isActive: Boolean
+}
+
+input UpdateCompanyInput {
+  address: String
+  city: String
+  contact: String
+  countryCode: String
+  creationDate: String
+  email: String
+  fax: String
+  id: ID!
+  keyedStart: Boolean
+  mobile: String
+  name: String
+  phone: String
+  postalCode: String
+  siret: String
+  subscriptionDate: String
+}
+
+input UpdateDepenseInput {
+  associateDate: AWSDateTime
+  companyDepensesId: ID
+  description: String
+  id: ID!
+  montantHT: Float
+  montantTTC: Float
+  prestataire: String
+  produit: String
+  qte: Int
+  typeDepenseId: ID
+  vehicleImmat: String
+  ville: String
+}
+
+input UpdateDeviceInput {
+  cid: String
+  deviceVehicleImmat: String
+  device_type_id: Int
+  enabled: Boolean
+  flespi_id: Int
+  imei: String!
+  media_rotate: String
+  media_ttl: String
+  messages_rotate: String
+  messages_ttl: String
+  name: String
+  protocolId: Int
+  sim: String
+}
+
+input UpdateDriverInput {
+  address: String
+  agencyId: String
+  birthDate: String
+  cdc: String
+  code: String
+  comment: String
+  companyDriversId: ID
+  driverKey: String
+  drivingLicenseNumber: String
+  drivingLicenseType: String
+  email: String
+  firstname: String
+  fullname: String
+  hiringDate: String
+  job: String
+  lastModificationDate: String
+  lastname: String
+  mobile: String
+  nni: String
+  password: String
+  pdm: String
+  sub: String!
+  username: String
+}
+
+input UpdateDvDInput {
+  assignmentDate: AWSDateTime
+  dvDCompanyId: ID
+  dvDDriverSub: String
+  dvDVehicleImmat: String
+  id: ID!
+  unassignmentDate: AWSDateTime
+}
+
+input UpdateLabelsCollectionInput {
+  key: String!
+  label: String
+  type: String
+}
+
+input UpdateMaintenanceInput {
+  alertDate: AWSDateTime
+  companyMaintenancesId: ID
+  cost: Float
+  creationDate: AWSDateTime
+  email: String
+  id: ID!
+  lastModificationDate: AWSDateTime
+  notes: String
+  operationType: MaintenanceOperationType
+  reminderDays: Int
+  status: MaintenanceStatus
+  vehicleMaintenancesImmat: String
+}
+
+input UpdatePoiInput {
+  adress: String
+  companyPoisId: ID
+  id: ID!
+  lat: Float
+  lng: Float
+  name: String
+}
+
+input UpdateTagInput {
+  color: String
+  description: String
+  id: ID!
+  name: String
+  tagCompanyId: ID
+}
+
+input UpdateTrameInput {
+  address: String
+  azimut: Float
+  companyId: String
+  companyTramesId: ID
+  distance: Float
+  driverFullName: String
+  fuel: String
+  ibuttonCode: String
+  id: String!
+  immobilisation: Boolean
+  lat: Float
+  lng: Float
+  processor: Processor
+  speed: Float
+  state: String
+  timestamp: AWSDateTime
+  trameDriverSub: String
+  trameVehicleImmat: String
+  vehicleBrandName: String
+}
+
+input UpdateTypeDepenseInput {
+  description: String
+  id: ID!
+  name: String
+}
+
+input UpdateUserInput {
+  accessExpiresAt: AWSDateTime
+  accessType: AccessType
+  accessibleVehicles: [String!]
+  address: String
+  applicationVersion: String
+  beginDate: String
+  companyUsersId: ID
+  dispatcher: String
+  endDate: String
+  firstname: String
+  languageCode: String
+  lastModificationDate: String
+  lastname: String
+  mappingId: String
+  mobile: String
+  password: String
+  picture: S3ObjectInput
+  role: UserRole
+  showReport: String
+  sub: String!
+  themeId: String
+  username: String
+}
+
+input UpdateVehicleAlertStateInput {
+  alert: AlertType
+  id: String!
+  state: String
+  timestamp: AWSTimestamp
+  vehicleAlertStateVehicleImmat: String
+  vehicleAlertStateZoneId: ID
+}
+
+input UpdateVehicleAlertsInput {
+  alertId: ID
+  id: ID!
+  isFlespi: Boolean
+  vehicleImmat: String
+}
+
+input UpdateVehicleBrandInput {
+  brandName: String!
+  logo: S3ObjectInput
+}
+
+input UpdateVehicleCategoryInput {
+  category: String
+  description: String
+  id: ID!
+}
+
+input UpdateVehicleInput {
+  AWN_VIN: String
+  AWN_code_moteur: String
+  AWN_collection: String
+  AWN_consommation_ex_urbaine: String
+  AWN_consommation_mixte: String
+  AWN_consommation_urbaine: String
+  AWN_date_30: String
+  AWN_date_cg: String
+  AWN_depollution: String
+  AWN_emission_co_2_prf: String
+  AWN_energie_code: String
+  AWN_generation: String
+  AWN_genre: String
+  AWN_group: String
+  AWN_k_type: String
+  AWN_label: String
+  AWN_max_speed: String
+  AWN_mode_injection: String
+  AWN_model: String
+  AWN_model_image: String
+  AWN_nbr_cylindre_energie: String
+  AWN_nbr_cylindres: String
+  AWN_nbr_places: String
+  AWN_nbr_portes: String
+  AWN_nbr_soupapes: String
+  AWN_nbr_vitesses: String
+  AWN_niveau_de_bruit_au_ralenti: String
+  AWN_nom_commercial: String
+  AWN_numero_de_serie: String
+  AWN_poids_max_autorise: String
+  AWN_poids_total: String
+  AWN_poids_total_roulant: String
+  AWN_poids_vide: String
+  AWN_propulsion: String
+  AWN_puissance_KW: String
+  AWN_segment: String
+  AWN_turbo_compressor: String
+  AWN_type_frein: String
+  AWN_type_injection: String
+  AWN_url_image: String
+  AWN_version: String
+  AWN_vitesse_moteur: String
+  VIN: String
+  ad_blue: String
+  ad_green: String
+  boiteVitesse: String
+  canMileage: String
+  carrosserie: String
+  cl_environ_prf: String
+  co2: String
+  code: String
+  code_certificat_qualite_air: String
+  companyVehiclesId: ID
+  consumption: String
+  couleur: String
+  counterValue: String
+  dateMiseEnCirculation: String
+  depollution: String
+  emissions: String
+  energie: String
+  fuelType: String
+  gefcoSend: String
+  icon: String
+  immat: String!
+  immatriculation: String
+  installationPrecautions: String
+  k_type: String
+  kilometerPrice: String
+  kilometerage: String
+  kilometerageDay: String
+  kilometerageLastUpdate: String
+  kilometerageStart: String
+  lastModificationDate: String
+  locations: String
+  marque: String
+  marque_id: String
+  maxSpeed: String
+  modele_id: String
+  nomVehicule: String
+  picture: S3ObjectInput
+  puissanceDin: String
+  puissanceFiscale: String
+  realImmat: String
+  rollingTimeDay: String
+  rollingTimeStart: String
+  seatCount: String
+  tankCapacity: String
+  timeRunning: String
+  type_mine: String
+  vehicleBrandBrandName: String
+  vehicleDeviceImei: String
+  vehicleModeleId: ID
+  vehicleVehicleCategoryId: ID
+  version: String
+  year: String
+}
+
+input UpdateVehicleModelInput {
+  id: ID!
+  modele: String
+  vehicleBrandModelsBrandName: String
+}
+
+input UpdateVehicleTagsInput {
+  id: ID!
+  tagId: ID
+  vehicleImmat: String
+}
+
+input UpdateZoneInput {
+  adress: String
+  companyZonesId: ID
+  id: ID!
+  lat: Float
+  lng: Float
+  name: String
+  radius: Int
+}
