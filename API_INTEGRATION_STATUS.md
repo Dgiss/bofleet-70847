@@ -54,39 +54,35 @@ Ouvrez la console du navigateur et testez l'API Phenix depuis `/api-diagnostic`.
 
 ---
 
-## ❌ Truphone - ERREUR 404
+## 🔧 Truphone - CONFIGURATION MISE À JOUR
 
-**Status** : ❌ URL incorrecte
-**Erreur** : 404 Not Found
+**Status** : 🔧 Configuration corrigée, en cours de test
+**Documentation** : ✅ Reçue et implémentée (OpenAPI v2.2)
 **Configuration** : Credentials configurés
 
-### Problème
-L'endpoint `/v1/sims` retourne une erreur 404 (Non trouvé).
+### Changements effectués
+La documentation OpenAPI complète a été reçue et implémentée.
 
-### Cause
-**Documentation incomplète** : Les URLs de l'API Truphone utilisées sont basées sur des suppositions car la documentation complète n'était pas disponible.
-
-### URL testée
+### Configuration corrigée
 ```
-GET https://api.truphone.com/v1/sims
-Header: Authorization: Bearer [api_key]
+Base URL: https://iot.truphone.com/api
+API Version: v2.2
+Authentication: Token [api_key]
 ```
 
-### Actions requises
-1. **Obtenir la documentation API officielle** de Truphone
-   - Connectez-vous sur https://account.truphone.com/
-   - Cherchez la section "API Documentation" ou "Developer Docs"
-   - Récupérez les endpoints exacts
+### Endpoints configurés
+- ✅ `/api/v2.2/sims` - Liste des SIMs
+- ✅ `/api/v2.2/sims/{iccid}` - Détails d'une SIM
+- ✅ `/api/v2.2/sims/{iccid}/data_usage` - Consommation data
 
-2. **Informations nécessaires** :
-   - URL de base de l'API
-   - Endpoints pour :
-     - Lister les SIMs
-     - Obtenir le statut d'une SIM
-     - Consulter la consommation
-   - Format d'authentification (API Key header)
+### Corrections appliquées
+1. **URL de base** : `https://api.truphone.com` → `https://iot.truphone.com`
+2. **Authentification** : `Bearer {token}` → `Token {token}`
+3. **Endpoints** : `/v1/sims` → `/api/v2.2/sims`
+4. **Proxy Vite** : Mis à jour pour pointer vers `iot.truphone.com`
 
-3. **Une fois obtenue**, partagez la documentation pour mettre à jour le service
+### Test en cours
+Utiliser la page `/api-diagnostic` pour tester la connexion avec la nouvelle configuration
 
 ---
 
@@ -110,8 +106,8 @@ VITE_TRUPHONE_PASSWORD=***configured***
 ### Proxies configurés (vite.config.ts)
 ```typescript
 '/api/thingsmobile' → 'https://api.thingsmobile.com' ✅
-'/api/phenix' → 'https://api.phenix-partner.fr' ⚠️
-'/api/truphone' → 'https://api.truphone.com' ❌
+'/api/phenix' → 'https://api.phenix-partner.fr' ✅
+'/api/truphone' → 'https://iot.truphone.com' 🔧
 ```
 
 ---
