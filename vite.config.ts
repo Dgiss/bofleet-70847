@@ -8,6 +8,26 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/api/thingsmobile': {
+        target: 'https://api.thingsmobile.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/thingsmobile/, ''),
+        secure: false,
+      },
+      '/api/phenix': {
+        target: 'https://api.phenix-partner.fr',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/phenix/, ''),
+        secure: false,
+      },
+      '/api/truphone': {
+        target: 'https://iot.truphone.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/truphone/, ''),
+        secure: false,
+      }
+    }
   },
   plugins: [
     react(),

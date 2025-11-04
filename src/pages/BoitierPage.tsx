@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, RefreshCw, Wifi, Building, Loader2, Filter, ArrowUp, Plus, FileSpreadsheet, Car, Link2, Link2Off, Package, Pencil } from "lucide-react";
 import { EnhancedDataTable } from "@/components/tables/EnhancedDataTable";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { CompanySearchSelect } from "@/components/ui/company-search-select";
 import { useCompanyVehicleDevice } from "@/hooks/useCompanyVehicleDevice.jsx";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +27,7 @@ import ImportDevicesForm from "@/components/forms/ImportDevicesForm";
 import AddDeviceWithVehicleForm from "@/components/forms/AddDeviceWithVehicleForm";
 import AssociateDeviceDialog from '@/components/dialogs/AssociateDeviceDialog';
 import EditDeviceDialog from '@/components/dialogs/EditDeviceDialog';
+import { SimTab } from "@/components/sim/SimTab";
 
 export default function BoitierPage() {
   const {
@@ -202,6 +205,9 @@ export default function BoitierPage() {
     
     return matchesAvailability && matchesImmat;
   });
+
+  // Limit the light IMEI/SIM table to the first 100 rows for readability
+  const imeiSimPreview = useMemo(() => filteredDevices.slice(0, 100), [filteredDevices]);
 
   const handleRefresh = useCallback(() => {
     reset();
@@ -436,13 +442,19 @@ export default function BoitierPage() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Wifi className="h-8 w-8 text-primary" />
-            Gestion des Boîtiers
-          </h1>
+      <Tabs defaultValue="boitiers" className="space-y-6">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="boitiers">Boîtiers</TabsTrigger>
+          <TabsTrigger value="sim">Cartes SIM</TabsTrigger>
+        </TabsList>
+        <TabsContent value="boitiers" className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <Wifi className="h-8 w-8 text-primary" />
+                Gestion des Boîtiers
+              </h1>
           <p className="text-muted-foreground mt-1">
             {selectedCompany 
               ? "Affichage des boîtiers de l'entreprise sélectionnée"
@@ -703,6 +715,46 @@ export default function BoitierPage() {
         )}
       </div>
 
+      {/* Quick IMEI/SIM Overview */}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b">
+          <h2 className="text-base font-semibold">Aperçu IMEI & SIM</h2>
+          <p className="text-sm text-muted-foreground">
+            Affichage des {imeiSimPreview.length} premiers boîtiers selon vos filtres.
+          </p>
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>IMEI</TableHead>
+                <TableHead>SIM</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {imeiSimPreview.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="text-center text-muted-foreground">
+                    Aucun boîtier à afficher
+                  </TableCell>
+                </TableRow>
+              ) : (
+                imeiSimPreview.map((device) => (
+                  <TableRow key={device.id || device.imei}>
+                    <TableCell className={device.imei ? "font-medium" : "text-muted-foreground italic"}>
+                      {device.imei || "IMEI non défini"}
+                    </TableCell>
+                    <TableCell className={device.sim ? "" : "text-muted-foreground"}>
+                      {device.sim || "Pas de SIM"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
       {/* Data Table */}
       <div className="rounded-lg border bg-card overflow-visible">
         <EnhancedDataTable
@@ -764,6 +816,12 @@ export default function BoitierPage() {
         onOpenChange={setShowEditDeviceDialog}
         onSuccess={handleEditSuccess}
       />
+
+        </TabsContent>
+        <TabsContent value="sim">
+          <SimTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

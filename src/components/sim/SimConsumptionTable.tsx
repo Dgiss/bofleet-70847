@@ -1,22 +1,37 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
-import { Filter, Calendar, BarChart } from "lucide-react";
+import { Filter, Calendar, BarChart, Loader2 } from "lucide-react";
+import {
+  listThingsMobileSims,
+  type ThingsMobileSim
+} from "@/services/ThingsMobileService";
+import {
+  listPhenixSims,
+  getPhenixConsumptionHistory,
+  type PhenixSim
+} from "@/services/PhenixService";
+import {
+  listTruphoneSims,
+  getTruphoneUsage,
+  type TruphoneSim
+} from "@/services/TruphoneService";
 
 // Types de cartes SIM
 type SimType = "Truphone" | "Things Mobile" | "Phenix" | "All";
@@ -40,43 +55,78 @@ const thresholds = {
   calls: { low: 30, medium: 120 } // en minutes
 };
 
-// Génération de données fictives
-const generateSimData = (): SimConsumption[] => {
+// Fonction pour convertir bytes en MB
+const bytesToMB = (bytes: number): number => {
+  return Math.round(bytes / 1000000);
+};
+
+// Fonction pour récupérer les données réelles des APIs
+const fetchSimConsumptionData = async (): Promise<SimConsumption[]> => {
   const data: SimConsumption[] = [];
-  
-  // Créer 5 SIM Truphone
-  for (let i = 1; i <= 5; i++) {
-    data.push({
-      id: `8944${String(i).padStart(2, '0')}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      type: "Truphone",
-      dataUsage: Math.floor(Math.random() * 800),
-      smsCount: Math.floor(Math.random() * 100),
-      callDuration: Math.floor(Math.random() * 200)
+
+  try {
+    // Récupérer les SIMs Things Mobile
+    const thingsMobileSims = await listThingsMobileSims({ pageSize: 100 });
+    thingsMobileSims.sims.forEach((sim) => {
+      data.push({
+        id: sim.iccid || sim.msisdn,
+        type: "Things Mobile",
+        dataUsage: bytesToMB(sim.monthlyTrafficBytes || sim.dailyTrafficBytes || 0),
+        smsCount: 0, // Things Mobile ne fournit pas de données SMS dans simListLite
+        callDuration: 0, // Things Mobile ne fournit pas de données d'appels
+      });
     });
+  } catch (error) {
+    console.log("Things Mobile SIMs not available:", error);
   }
-  
-  // Créer 5 SIM Things Mobile
-  for (let i = 1; i <= 5; i++) {
-    data.push({
-      id: `3933${String(i).padStart(2, '0')}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      type: "Things Mobile",
-      dataUsage: Math.floor(Math.random() * 800),
-      smsCount: Math.floor(Math.random() * 100),
-      callDuration: Math.floor(Math.random() * 200)
-    });
+
+  try {
+    // Récupérer les SIMs Phenix (si credentials disponibles)
+    const phenixSims = await listPhenixSims();
+    const currentDate = new Date();
+    const month = currentDate.getMonth() + 1;
+    const year = currentDate.getFullYear();
+
+    for (const sim of phenixSims) {
+      try {
+        const consumption = await getPhenixConsumptionHistory(sim.msisdn, month, year);
+        data.push({
+          id: sim.iccid || sim.msisdn,
+          type: "Phenix",
+          dataUsage: bytesToMB(consumption?.data || 0),
+          smsCount: consumption?.sms || 0,
+          callDuration: consumption?.voice || 0,
+        });
+      } catch (error) {
+        console.log(`Error fetching Phenix consumption for ${sim.msisdn}:`, error);
+      }
+    }
+  } catch (error) {
+    console.log("Phenix SIMs not available:", error);
   }
-  
-  // Créer 5 SIM Phenix
-  for (let i = 1; i <= 5; i++) {
-    data.push({
-      id: `3367${String(i).padStart(2, '0')}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-      type: "Phenix",
-      dataUsage: Math.floor(Math.random() * 800),
-      smsCount: Math.floor(Math.random() * 100),
-      callDuration: Math.floor(Math.random() * 200)
-    });
+
+  try {
+    // Récupérer les SIMs Truphone (si credentials disponibles)
+    const truphoneSims = await listTruphoneSims();
+
+    for (const sim of truphoneSims) {
+      try {
+        const usage = await getTruphoneUsage(sim.simId);
+        data.push({
+          id: sim.iccid || sim.simId,
+          type: "Truphone",
+          dataUsage: bytesToMB(usage?.dataUsage || 0),
+          smsCount: usage?.smsCount || 0,
+          callDuration: usage?.callDuration || 0,
+        });
+      } catch (error) {
+        console.log(`Error fetching Truphone usage for ${sim.simId}:`, error);
+      }
+    }
+  } catch (error) {
+    console.log("Truphone SIMs not available:", error);
   }
-  
+
   return data;
 };
 
@@ -98,26 +148,57 @@ const getProgressColor = (value: number, type: 'data' | 'sms' | 'calls'): string
 
 // Composant principal
 export const SimConsumptionTable: React.FC = () => {
-  const [simData] = useState<SimConsumption[]>(generateSimData());
   const [simTypeFilter, setSimTypeFilter] = useState<SimType>("All");
   const [period, setPeriod] = useState<Period>("month");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  
+
+  // Charger les données des SIMs via React Query
+  const { data: simData = [], isLoading, error } = useQuery({
+    queryKey: ["simConsumption", period],
+    queryFn: fetchSimConsumptionData,
+    refetchInterval: 60000, // Rafraîchir toutes les minutes
+    retry: 1,
+  });
+
   // Filtrer les données selon le type de SIM et le terme de recherche
-  const filteredData = simData.filter(sim => 
+  const filteredData = simData.filter((sim) =>
     (simTypeFilter === "All" || sim.type === simTypeFilter) &&
     sim.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
   // Obtenir le maximum pour chaque type de consommation pour calculer les pourcentages
-  const maxData = Math.max(...simData.map(sim => sim.dataUsage));
-  const maxSms = Math.max(...simData.map(sim => sim.smsCount));
-  const maxCalls = Math.max(...simData.map(sim => sim.callDuration));
+  const maxData = simData.length > 0 ? Math.max(...simData.map((sim) => sim.dataUsage), 1) : 1;
+  const maxSms = simData.length > 0 ? Math.max(...simData.map((sim) => sim.smsCount), 1) : 1;
+  const maxCalls = simData.length > 0 ? Math.max(...simData.map((sim) => sim.callDuration), 1) : 1;
   
+  // Afficher un loader pendant le chargement
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Chargement des données de consommation...</span>
+      </div>
+    );
+  }
+
+  // Afficher une erreur si le chargement a échoué
+  if (error) {
+    return (
+      <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+        <h3 className="text-lg font-semibold text-red-800 mb-2">
+          Erreur de chargement
+        </h3>
+        <p className="text-red-600">
+          Impossible de charger les données de consommation. Vérifiez vos credentials API.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <h2 className="text-2xl font-bold">Consommation des Cartes SIM</h2>
+        <h2 className="text-2xl font-bold">Consommation des Cartes SIM (Données réelles)</h2>
         
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-auto">

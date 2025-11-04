@@ -241,7 +241,7 @@ export function EnhancedDataTable({
     
     // Sinon, utiliser le rendu par défaut (CopyableCell)
     return (
-      <CopyableCell key={column.id} value={value} />
+      <CopyableCell key={column.id} value={value} asChild />
     );
   };
 
