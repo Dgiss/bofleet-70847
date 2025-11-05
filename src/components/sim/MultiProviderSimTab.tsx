@@ -8,7 +8,7 @@ import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable
 import { Loader2, RefreshCw, Search, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
-import { listThingsMobileSims } from "@/services/ThingsMobileService";
+import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
 import { listTruphoneSims } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
@@ -120,10 +120,10 @@ export function MultiProviderSimTab() {
 
     // Charger tous les opérateurs EN PARALLÈLE avec Promise.allSettled
     const results = await Promise.allSettled([
-      // Things Mobile
-      listThingsMobileSims({ pageSize: 500 }).then((tmResult) => ({
+      // Things Mobile (toutes les pages)
+      listAllThingsMobileSims().then((tmSims) => ({
         provider: "Things Mobile" as const,
-        sims: tmResult.sims.map((sim) => ({
+        sims: tmSims.map((sim) => ({
           id: `tm-${sim.iccid || sim.msisdn}`,
           provider: "Things Mobile" as const,
           msisdn: sim.msisdn || "—",
