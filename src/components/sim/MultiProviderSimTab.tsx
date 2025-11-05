@@ -35,17 +35,23 @@ interface ProviderStatus {
 const statusToBadgeVariant = (status: string) => {
   switch (status?.toLowerCase()) {
     case "active":
-      return "outline";
+    case "activated":
+      return "outline"; // Green outline for active SIMs
     case "suspended":
-      return "secondary";
+      return "secondary"; // Gray for suspended
     case "to-activate":
-      return "default";
+    case "test_ready":
+    case "inventory":
+      return "default"; // Blue for pending activation/test
     case "deactivated":
     case "not active":
     case "inactive":
-      return "destructive";
+    case "retired":
+      return "destructive"; // Red for inactive
+    case "unknown":
+      return "secondary"; // Gray for unknown status
     default:
-      return "secondary";
+      return "secondary"; // Gray for any other status
   }
 };
 
@@ -53,6 +59,31 @@ const formatBytes = (bytes?: number) => {
   if (!bytes) return "—";
   const mb = bytes / 1_000_000;
   return `${mb.toFixed(2)} MB`;
+};
+
+const statusToDisplayText = (status: string): string => {
+  switch (status?.toLowerCase()) {
+    case "active":
+    case "activated":
+      return "ACTIF";
+    case "inactive":
+    case "deactivated":
+      return "INACTIF";
+    case "suspended":
+      return "SUSPENDU";
+    case "to-activate":
+      return "À ACTIVER";
+    case "test_ready":
+      return "TEST PRÊT";
+    case "inventory":
+      return "INVENTAIRE";
+    case "retired":
+      return "RETIRÉ";
+    case "unknown":
+      return "STATUT INCONNU";
+    default:
+      return status ? status.toUpperCase() : "—";
+  }
 };
 
 export function MultiProviderSimTab() {
@@ -205,7 +236,7 @@ export function MultiProviderSimTab() {
       sortable: true,
       renderCell: (value: string) => (
         <Badge variant={statusToBadgeVariant(value)}>
-          {value ? value.toUpperCase() : "—"}
+          {statusToDisplayText(value)}
         </Badge>
       ),
     },

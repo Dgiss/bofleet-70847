@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Zap, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { rechargePhenixSim } from "@/services/PhenixService";
+import { rechargeThingsMobileSim } from "@/services/ThingsMobileService";
 
 export default function RechargeTestPage() {
   const [provider, setProvider] = useState<string>("Phenix");
@@ -54,11 +55,9 @@ export default function RechargeTestPage() {
           if (!msisdn) {
             throw new Error("MSISDN requis pour Things Mobile");
           }
-          console.log("🔄 Simulation Things Mobile...");
-          // Things Mobile n'a pas d'API de recharge publique
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          success = true;
-          message = "Recharge Things Mobile simulée (API non disponible)";
+          console.log("🔄 Appel API Things Mobile...");
+          success = await rechargeThingsMobileSim(msisdn, volumeNum, iccid);
+          message = success ? "Recharge Things Mobile réussie" : "Recharge Things Mobile échouée";
           break;
 
         case "Truphone":
@@ -147,7 +146,7 @@ export default function RechargeTestPage() {
                   <SelectItem value="Things Mobile">
                     <div className="flex items-center gap-2">
                       <Badge variant="default">Things Mobile</Badge>
-                      <span className="text-xs text-muted-foreground">(Simulation)</span>
+                      <span className="text-xs text-muted-foreground">(Recharge réelle - Max 1000 MB)</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="Truphone">
@@ -240,10 +239,15 @@ export default function RechargeTestPage() {
                   </>
                 )}
                 {provider === "Things Mobile" && (
-                  <p>
-                    <strong>Things Mobile:</strong> Simulation uniquement. L'API Things Mobile ne
-                    fournit pas d'endpoint public de recharge.
-                  </p>
+                  <>
+                    <p>
+                      <strong>Things Mobile:</strong> Utilise l'API réelle{" "}
+                      <code className="bg-muted px-1">/services/business-api/rechargeSim</code>
+                    </p>
+                    <p className="text-yellow-600">
+                      ⚠️ Maximum 1000 MB par recharge. Le montant sera déduit de votre crédit partagé.
+                    </p>
+                  </>
                 )}
                 {provider === "Truphone" && (
                   <p>
@@ -364,10 +368,10 @@ export default function RechargeTestPage() {
                   ✅ <strong>Phenix:</strong> API réelle (erreur 403 si permissions manquantes)
                 </li>
                 <li>
-                  ⚠️ <strong>Things Mobile:</strong> Simulation (pas d'API publique)
+                  ✅ <strong>Things Mobile:</strong> API réelle (max 1000 MB par recharge)
                 </li>
                 <li>
-                  ⚠️ <strong>Truphone:</strong> Simulation (à vérifier dans la doc)
+                  ⚠️ <strong>Truphone:</strong> Simulation (nécessite mapping de plans tarifaires)
                 </li>
               </ul>
             </div>

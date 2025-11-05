@@ -97,6 +97,45 @@ const getHeaders = async () => {
   };
 };
 
+/**
+ * Normalise le statut Truphone/1Global vers un format standard
+ *
+ * Statuts possibles de l'API 1Global:
+ * - ACTIVATED: Carte SIM active
+ * - DEACTIVATED: Carte SIM désactivée
+ * - SUSPENDED: Carte SIM suspendue
+ * - TEST_READY: Prête pour les tests
+ * - INVENTORY: En inventaire
+ * - RETIRED: Retirée
+ */
+const normalizeTruphoneStatus = (apiStatus: string | undefined): string => {
+  if (!apiStatus) {
+    console.warn("⚠️ Truphone: Statut manquant dans la réponse API");
+    return "UNKNOWN";
+  }
+
+  // Normaliser en majuscules pour la comparaison
+  const status = String(apiStatus).toUpperCase();
+
+  // Mapper les statuts Truphone vers des noms standard
+  const statusMap: Record<string, string> = {
+    "ACTIVATED": "ACTIVE",
+    "ACTIVE": "ACTIVE",
+    "DEACTIVATED": "INACTIVE",
+    "INACTIVE": "INACTIVE",
+    "NOT ACTIVE": "INACTIVE",
+    "SUSPENDED": "SUSPENDED",
+    "TEST_READY": "TEST_READY",
+    "INVENTORY": "INVENTORY",
+    "RETIRED": "RETIRED",
+  };
+
+  const normalizedStatus = statusMap[status] || status;
+  console.log(`Truphone: Statut normalisé: "${apiStatus}" → "${normalizedStatus}"`);
+
+  return normalizedStatus;
+};
+
 export const getTruphoneSimStatus = async (iccid: string): Promise<TruphoneSim | null> => {
   try {
     const headers = await getHeaders();
@@ -105,11 +144,26 @@ export const getTruphoneSimStatus = async (iccid: string): Promise<TruphoneSim |
     });
 
     const data = response.data;
+
+    // Détection du champ de statut - essayer plusieurs variantes
+    const rawStatus = data.status ??
+                     data.state ??
+                     data.sim_status ??
+                     data.simStatus ??
+                     data.subscription_status ??
+                     data.subscriptionStatus ??
+                     data.connectivity_status ??
+                     data.connectivityStatus;
+
+    if (!rawStatus) {
+      console.warn(`⚠️ Truphone SIM ${iccid}: Aucun champ de statut trouvé dans:`, Object.keys(data));
+    }
+
     return {
       simId: data.id ?? data.simId ?? data.sim_id ?? iccid,
       iccid: data.iccid ?? iccid,
       msisdn: data.msisdn ?? undefined,
-      status: data.status ?? data.state ?? "Unknown",
+      status: normalizeTruphoneStatus(rawStatus),
       imsi: data.imsi ?? undefined,
     };
   } catch (error) {
@@ -188,13 +242,30 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
     }
 
     console.log(`Truphone: ${sims.length} SIM(s) trouvée(s)`);
-    return sims.map((sim: any) => ({
-      simId: sim.id ?? sim.simId ?? sim.sim_id ?? sim.iccid ?? "",
-      iccid: sim.iccid ?? "",
-      msisdn: sim.msisdn ?? undefined,
-      status: sim.status ?? sim.state ?? "Unknown",
-      imsi: sim.imsi ?? undefined,
-    }));
+
+    return sims.map((sim: any, index: number) => {
+      // Détection du champ de statut - essayer plusieurs variantes
+      const rawStatus = sim.status ??
+                       sim.state ??
+                       sim.sim_status ??
+                       sim.simStatus ??
+                       sim.subscription_status ??
+                       sim.subscriptionStatus ??
+                       sim.connectivity_status ??
+                       sim.connectivityStatus;
+
+      if (!rawStatus) {
+        console.warn(`⚠️ Truphone SIM #${index + 1} (${sim.iccid}): Aucun champ de statut trouvé dans:`, Object.keys(sim));
+      }
+
+      return {
+        simId: sim.id ?? sim.simId ?? sim.sim_id ?? sim.iccid ?? "",
+        iccid: sim.iccid ?? "",
+        msisdn: sim.msisdn ?? undefined,
+        status: normalizeTruphoneStatus(rawStatus),
+        imsi: sim.imsi ?? undefined,
+      };
+    });
   } catch (error: any) {
     console.error("Truphone list SIMs error:", {
       message: error.message,
@@ -209,44 +280,66 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
 /**
  * Change le plan tarifaire d'une carte SIM Truphone/1GLOBAL
  *
+ * Documentation: 1Global IoT Portal API v2.2
+ * Endpoint: PATCH /api/v2.2/sims/{iccid}/subscription
+ *
  * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de "recharge" de données.
- * Les "top-ups" se font généralement en changeant le plan tarifaire (rate plan/subscription).
- * Consultez la documentation API complète : https://iot.truphone.com/api/doc/#!/api
+ * Les "top-ups" se font en changeant le forfait d'abonnement (Rate Plan / Service Pack).
+ *
+ * Réponses HTTP:
+ * - 200: Changement de plan tarifaire planifié annulé (si vous renvoyez le plan actuel)
+ * - 204: Changement de plan tarifaire créé avec succès
+ * - 400: Requête incorrecte (champs obligatoires manquants ou valeurs invalides)
+ * - 404: Carte SIM introuvable
  *
  * @param iccid - ICCID de la carte SIM
- * @param ratePlanId - ID du nouveau plan tarifaire
- * @param immediate - Si true, applique immédiatement. Si false, applique au prochain cycle de facturation
- * @returns true si le changement réussit, false sinon
+ * @param servicePackId - ID du forfait de service (Rate Plan)
+ * @param nextBillingCycle - Si true, applique au prochain cycle. Si false, applique immédiatement.
+ * @returns true si le changement réussit
+ * @throws Error en cas d'échec
  */
 export const changeTruphoneRatePlan = async (
   iccid: string,
-  ratePlanId: string,
-  immediate: boolean = false
+  servicePackId: string,
+  nextBillingCycle: boolean = false
 ): Promise<boolean> => {
   try {
     const headers = await getHeaders();
-    console.log(`Truphone: Changement de plan tarifaire pour ${iccid} -> ${ratePlanId}`);
+    console.log(`Truphone: Changement de plan tarifaire pour ${iccid}`);
+    console.log(`  - Service Pack ID: ${servicePackId}`);
+    console.log(`  - Application: ${nextBillingCycle ? "Prochain cycle" : "Immédiat"}`);
 
-    const response = await axios.put(
+    const response = await axios.patch(
       `${BASE_URL}/v2.2/sims/${iccid}/subscription`,
       {
-        rate_plan_id: ratePlanId,
-        apply_immediately: immediate,
+        service_pack_id: servicePackId,
+        next_billing_cycle: nextBillingCycle,
       },
       { headers }
     );
 
-    console.log("Truphone: Plan tarifaire changé avec succès", response.data);
+    if (response.status === 200) {
+      console.log("✅ Truphone: Changement de plan planifié annulé");
+    } else if (response.status === 204) {
+      console.log("✅ Truphone: Changement de plan créé avec succès");
+    }
+
     return response.status === 200 || response.status === 204;
   } catch (error: any) {
-    console.error("Truphone change rate plan error:", {
+    console.error("❌ Truphone change rate plan error:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
     });
-    throw new Error(
-      `Échec du changement de plan tarifaire Truphone: ${error.response?.data?.message || error.message}`
-    );
+
+    let errorMessage = "Échec du changement de plan tarifaire Truphone";
+    if (error.response?.data?.detail) {
+      errorMessage += `: ${error.response.data.detail}`;
+    } else if (error.message) {
+      errorMessage += `: ${error.message}`;
+    }
+
+    throw new Error(errorMessage);
   }
 };
 

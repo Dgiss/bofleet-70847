@@ -233,39 +233,58 @@ export const getThingsMobileCdr = async (
 /**
  * Recharge une carte SIM Things Mobile avec des données
  *
- * NOTE: L'endpoint spécifique de recharge Things Mobile n'est pas documenté publiquement.
- * Les recharges se font normalement via le portail IoT : https://www.thingsmobile.com
- * Pour automatiser les recharges, contactez Things Mobile pour obtenir l'accès à l'API de recharge.
+ * Documentation: Things Mobile API v1.52, section 4.18
+ * Endpoint: https://api.thingsmobile.com/services/business-api/rechargeSim
  *
- * Endpoints potentiels (à vérifier dans votre portail API) :
- * - simRecharge
- * - addCredit
- * - topUp
- *
- * @param msisdn - Numéro MSISDN de la carte SIM
- * @param volumeMB - Volume de données à ajouter en MB
+ * @param msisdn - Numéro MSISDN de la carte SIM (optionnel si iccid fourni)
+ * @param volumeMB - Volume de données à ajouter en MB (maximum: 1000 MB)
+ * @param iccid - ICCID de la carte SIM (optionnel si msisdn fourni)
  * @returns true si la recharge réussit, false sinon
- * @throws Error si les credentials ne sont pas configurés
+ * @throws Error si les credentials ne sont pas configurés ou si les paramètres sont invalides
  */
 export const rechargeThingsMobileSim = async (
   msisdn: string,
-  volumeMB: number
+  volumeMB: number,
+  iccid?: string
 ): Promise<boolean> => {
-  console.warn("⚠️ Things Mobile: Fonction de recharge non implémentée (API endpoint non disponible publiquement)");
-  console.log(`Things Mobile: Recharge demandée pour ${msisdn} - ${volumeMB} MB`);
+  if (!msisdn && !iccid) {
+    throw new Error("Au moins un paramètre (MSISDN ou ICCID) est requis pour la recharge");
+  }
 
-  // TODO: Remplacer par l'appel API réel une fois l'endpoint obtenu
-  // Exemple possible (à adapter selon la vraie API):
-  /*
-  const result = await callThingsMobileApi("simRecharge", {
-    msisdn,
-    amount: volumeMB,
-  });
-  return result && String(result.done).toLowerCase() === "true";
-  */
+  if (volumeMB <= 0 || volumeMB > 1000) {
+    throw new Error("Le volume de recharge doit être entre 1 et 1000 MB");
+  }
 
-  throw new Error(
-    "La recharge Things Mobile n'est pas disponible via l'API publique. " +
-    "Veuillez recharger via le portail IoT (https://www.thingsmobile.com) ou contacter Things Mobile pour obtenir l'accès à l'API de recharge."
-  );
+  console.log(`Things Mobile: Recharge de ${volumeMB} MB pour ${msisdn || iccid}...`);
+
+  try {
+    const params: Record<string, string | number> = {
+      amount: volumeMB,
+    };
+
+    if (msisdn) {
+      params.msisdn = msisdn;
+    }
+    if (iccid) {
+      params.iccid = iccid;
+    }
+
+    const result = await callThingsMobileApi("rechargeSim", params);
+
+    if (result && String(result.done).toLowerCase() === "true") {
+      console.log(`✅ Things Mobile: Recharge réussie pour ${msisdn || iccid}`);
+      return true;
+    }
+
+    console.error("Things Mobile: Recharge échouée", result);
+    return false;
+  } catch (error: any) {
+    console.error("Things Mobile recharge error:", {
+      message: error.message,
+      msisdn: msisdn || "N/A",
+      iccid: iccid || "N/A",
+      volumeMB,
+    });
+    throw error;
+  }
 };
