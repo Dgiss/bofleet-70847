@@ -424,42 +424,71 @@ export const detectRatePlansFromSims = async (): Promise<TruphoneRatePlan[]> => 
     const plansMap = new Map<string, TruphoneRatePlan>();
 
     sims.forEach((sim: any, index: number) => {
-      // Afficher la structure de la première SIM pour debug
-      if (index === 0) {
-        console.log("📋 Structure de la première SIM (subscription):", sim.subscription);
+      // Afficher la structure complète des 3 premières SIMs pour debug
+      if (index < 3) {
+        console.log(`📋 SIM #${index + 1} - Structure complète:`, {
+          iccid: sim.iccid,
+          allSimKeys: Object.keys(sim),
+          subscription: sim.subscription,
+          subscriptionKeys: sim.subscription ? Object.keys(sim.subscription) : null,
+        });
       }
 
       // Chercher les infos de rate plan dans l'objet subscription
       const subscription = sim.subscription;
-      if (!subscription) return;
+      if (!subscription) {
+        if (index === 0) console.log(`⚠️ SIM ${sim.iccid}: Pas d'objet subscription`);
+        return;
+      }
 
       const planId = subscription.service_pack_id ??
+                     subscription.servicePackId ??
                      subscription.servicePack?.id ??
                      subscription.rate_plan_id ??
-                     subscription.ratePlan?.id;
+                     subscription.ratePlanId ??
+                     subscription.ratePlan?.id ??
+                     sim.service_pack_id ??
+                     sim.servicePackId ??
+                     sim.rate_plan_id ??
+                     sim.ratePlanId;
 
       if (planId && !plansMap.has(planId)) {
         const plan: TruphoneRatePlan = {
           id: planId,
           name: subscription.service_pack_name ??
+                subscription.servicePackName ??
                 subscription.servicePack?.name ??
                 subscription.rate_plan_name ??
+                subscription.ratePlanName ??
                 subscription.ratePlan?.name ??
+                sim.service_pack_name ??
+                sim.servicePackName ??
                 `Plan ${planId}`,
           description: subscription.service_pack_description ??
-                      subscription.servicePack?.description,
+                      subscription.servicePackDescription ??
+                      subscription.servicePack?.description ??
+                      sim.service_pack_description,
           dataAllowance: subscription.data_allowance ??
+                        subscription.dataAllowance ??
                         subscription.servicePack?.data_allowance ??
-                        subscription.dataAllowance,
+                        subscription.servicePack?.dataAllowance ??
+                        sim.data_allowance ??
+                        sim.dataAllowance,
           validity: subscription.validity_days ??
+                   subscription.validityDays ??
                    subscription.servicePack?.validity_days ??
-                   subscription.validity,
-          price: subscription.price ?? subscription.servicePack?.price,
-          currency: subscription.currency ?? subscription.servicePack?.currency ?? "EUR",
+                   subscription.servicePack?.validityDays ??
+                   subscription.validity ??
+                   sim.validity_days ??
+                   sim.validityDays,
+          price: subscription.price ?? subscription.servicePack?.price ?? sim.price,
+          currency: subscription.currency ?? subscription.servicePack?.currency ?? sim.currency ?? "EUR",
         };
 
         plansMap.set(planId, plan);
         console.log(`✅ Rate plan détecté: ${plan.name} (${plan.id})`, plan);
+      } else if (index < 3) {
+        console.log(`⚠️ SIM #${index + 1}: Pas de service pack ID trouvé`);
       }
     });
 
