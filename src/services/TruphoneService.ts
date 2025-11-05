@@ -35,6 +35,7 @@ export interface TruphoneRatePlan {
   validity?: number; // en jours
   price?: number;
   currency?: string;
+  supportsTestMode?: boolean;
 }
 
 const ensureCredentials = () => {
@@ -343,46 +344,60 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
 /**
  * Récupère la liste des plans tarifaires (Rate Plans) disponibles
  *
- * Documentation: 1Global IoT Portal API v2.1
- * Endpoint: GET /api/v2.1/rate_plans
+ * Documentation: 1Global IoT Portal API
+ * Endpoint: GET /api/rate_plan/
  *
- * NOTE: Cet endpoint peut ne pas être accessible selon votre compte Truphone.
- * Si l'endpoint retourne 403, la fonction retourne une liste vide et log un avertissement.
+ * NOTE: Utilise l'endpoint /rate_plan (singulier) qui liste tous les rate plans
+ * disponibles pour votre compte Truphone.
  *
  * @returns Liste des plans tarifaires disponibles (ou vide si non accessible)
  */
 export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
   try {
     const headers = await getHeaders();
-    console.log("Truphone: Récupération des plans tarifaires...");
+    console.log("Truphone: Récupération des plans tarifaires via /api/rate_plan/...");
 
-    const response = await axios.get(`${BASE_URL}/v2.1/rate_plans`, {
+    // L'endpoint correct est /rate_plan (singulier), pas /rate_plans
+    const response = await axios.get(`${BASE_URL}/rate_plan/`, {
       headers,
+      params: {
+        per_page: 500, // Récupérer jusqu'à 500 plans
+      },
     });
 
     console.log("Truphone: Réponse rate plans reçue", response.data);
-    const ratePlans = response.data.rate_plans ?? response.data.results ?? response.data ?? [];
+
+    // La réponse peut être un tableau directement ou dans un objet
+    let ratePlans = response.data;
+    if (!Array.isArray(ratePlans)) {
+      ratePlans = response.data.results ?? response.data.rate_plans ?? response.data.data ?? [];
+    }
 
     if (!Array.isArray(ratePlans)) {
-      console.error("Truphone: La réponse rate plans n'est pas un tableau:", ratePlans);
+      console.error("Truphone: La réponse rate plans n'est pas un tableau:", response.data);
       return [];
     }
 
     console.log(`Truphone: ${ratePlans.length} plan(s) tarifaire(s) trouvé(s)`);
 
     return ratePlans.map((plan: any) => ({
-      id: plan.id ?? plan.service_pack_id ?? "",
-      name: plan.name ?? plan.service_pack_name ?? "",
+      // Dans l'API Truphone, servicePackId est l'identifiant du rate plan
+      id: plan.servicePackId ?? plan.service_pack_id ?? plan.id ?? "",
+      name: plan.servicePackId ?? plan.service_pack_id ?? plan.name ?? "",
       description: plan.description ?? undefined,
-      dataAllowance: plan.data_allowance ?? plan.dataAllowance ?? undefined,
-      validity: plan.validity_days ?? plan.validity ?? undefined,
+      // Les détails de données peuvent être dans bearerServices
+      dataAllowance: plan.data_allowance ?? plan.dataAllowance ??
+                     plan.bearerServices?.data_allowance ??
+                     plan.bearerServices?.dataAllowance ?? undefined,
+      validity: plan.validity_days ?? plan.validityDays ?? plan.validity ?? undefined,
       price: plan.price ?? undefined,
       currency: plan.currency ?? "EUR",
+      supportsTestMode: plan.supportsTestMode ?? false,
     }));
   } catch (error: any) {
     // Si l'endpoint n'est pas accessible (403), retourner une liste vide
     if (error.response?.status === 403) {
-      console.warn("⚠️ Truphone: L'endpoint /rate_plans n'est pas accessible (403 Forbidden)");
+      console.warn("⚠️ Truphone: L'endpoint /rate_plan n'est pas accessible (403 Forbidden)");
       console.warn("⚠️ Truphone: Cet endpoint peut nécessiter des permissions spéciales ou ne pas être disponible pour votre compte");
       return [];
     }
