@@ -183,20 +183,26 @@ export const listAllThingsMobileSims = async (): Promise<ThingsMobileSim[]> => {
 
   let allSims: ThingsMobileSim[] = [];
   let page = 1;
-  const pageSize = 1000; // Taille de page augmentée
+  const pageSize = 500; // Taille de page optimale pour Things Mobile API
   let hasMore = true;
   const maxPages = 20; // Sécurité
 
   while (hasMore && page <= maxPages) {
-    const pageStartTime = Date.now();
-    const result = await listThingsMobileSims({ page, pageSize });
+    try {
+      const pageStartTime = Date.now();
+      const result = await listThingsMobileSims({ page, pageSize });
 
-    const pageDuration = Date.now() - pageStartTime;
-    console.log(`⏱️ Things Mobile: Page ${page} - ${result.sims.length} SIM(s) en ${pageDuration}ms`);
+      const pageDuration = Date.now() - pageStartTime;
+      console.log(`⏱️ Things Mobile: Page ${page} - ${result.sims.length} SIM(s) en ${pageDuration}ms`);
 
-    allSims = allSims.concat(result.sims);
-    hasMore = result.hasMore;
-    page++;
+      allSims = allSims.concat(result.sims);
+      hasMore = result.hasMore;
+      page++;
+    } catch (error: any) {
+      console.error(`❌ Things Mobile: Erreur page ${page}:`, error.message);
+      // Arrêter la pagination en cas d'erreur
+      break;
+    }
   }
 
   const totalDuration = Date.now() - startTime;
