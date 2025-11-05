@@ -64,14 +64,26 @@ export const authenticatePhenix = async (): Promise<string> => {
     console.log("Phenix: Réponse d'authentification reçue", response.data);
 
     // Le token peut être dans différents champs selon l'API
-    authToken = response.data.token || response.data.access_token || response.data.jwt;
+    // Priorité au working_token si présent (utilisé pour les appels API)
+    authToken =
+      response.data.working_token ||
+      response.data.workingToken ||
+      response.data.token ||
+      response.data.access_token ||
+      response.data.jwt;
 
     if (!authToken) {
       console.error("Phenix: Structure de réponse inattendue:", response.data);
       throw new Error("Token non trouvé dans la réponse");
     }
 
-    console.log("Phenix: Authentification réussie, token reçu");
+    console.log("Phenix: Authentification réussie, token reçu:", authToken.substring(0, 20) + "...");
+    console.log("Phenix: Type de token utilisé:",
+      response.data.working_token ? "working_token" :
+      response.data.workingToken ? "workingToken" :
+      response.data.token ? "token" :
+      response.data.access_token ? "access_token" : "jwt"
+    );
     return authToken;
   } catch (error: any) {
     console.error("Phenix authentication error:", {
@@ -102,6 +114,7 @@ export const listPhenixSims = async (): Promise<PhenixSim[]> => {
 
   try {
     console.log("Phenix: Récupération de la liste des SIMs...");
+    console.log("Phenix: Token utilisé:", token.substring(0, 20) + "...");
     const response = await axios.get(`${BASE_URL}/GsmApi/V2/GetInfoSimList`, {
       headers: {
         Authorization: `Bearer ${token}`,
