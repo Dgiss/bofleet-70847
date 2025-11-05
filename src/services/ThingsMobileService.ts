@@ -229,3 +229,43 @@ export const getThingsMobileCdr = async (
     hasMore,
   };
 };
+
+/**
+ * Recharge une carte SIM Things Mobile avec des données
+ *
+ * NOTE: L'endpoint spécifique de recharge Things Mobile n'est pas documenté publiquement.
+ * Les recharges se font normalement via le portail IoT : https://www.thingsmobile.com
+ * Pour automatiser les recharges, contactez Things Mobile pour obtenir l'accès à l'API de recharge.
+ *
+ * Endpoints potentiels (à vérifier dans votre portail API) :
+ * - simRecharge
+ * - addCredit
+ * - topUp
+ *
+ * @param msisdn - Numéro MSISDN de la carte SIM
+ * @param volumeMB - Volume de données à ajouter en MB
+ * @returns true si la recharge réussit, false sinon
+ * @throws Error si les credentials ne sont pas configurés
+ */
+export const rechargeThingsMobileSim = async (
+  msisdn: string,
+  volumeMB: number
+): Promise<boolean> => {
+  console.warn("⚠️ Things Mobile: Fonction de recharge non implémentée (API endpoint non disponible publiquement)");
+  console.log(`Things Mobile: Recharge demandée pour ${msisdn} - ${volumeMB} MB`);
+
+  // TODO: Remplacer par l'appel API réel une fois l'endpoint obtenu
+  // Exemple possible (à adapter selon la vraie API):
+  /*
+  const result = await callThingsMobileApi("simRecharge", {
+    msisdn,
+    amount: volumeMB,
+  });
+  return result && String(result.done).toLowerCase() === "true";
+  */
+
+  throw new Error(
+    "La recharge Things Mobile n'est pas disponible via l'API publique. " +
+    "Veuillez recharger via le portail IoT (https://www.thingsmobile.com) ou contacter Things Mobile pour obtenir l'accès à l'API de recharge."
+  );
+};

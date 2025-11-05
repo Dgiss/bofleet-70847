@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { rechargePhenixSim } from "@/services/PhenixService";
+import { rechargeThingsMobileSim } from "@/services/ThingsMobileService";
+import { rechargeTruphoneSim } from "@/services/TruphoneService";
 import { useToast } from "@/components/ui/use-toast";
 
 interface RechargeSimDialogProps {
@@ -59,20 +61,31 @@ export function RechargeSimDialog({
           break;
 
         case "Things Mobile":
-          // Things Mobile n'a pas d'API de recharge publique
-          // On simule pour le test
-          console.log(`🔄 Recharge Things Mobile (simulée): ${sim.msisdn} - ${volumeNum} MB`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          success = true;
-          setError("⚠️ Things Mobile: Recharge simulée (API non disponible)");
+          console.log(`🔄 Recharge Things Mobile: ${sim.msisdn} - ${volumeNum} MB`);
+          try {
+            success = await rechargeThingsMobileSim(sim.msisdn, volumeNum);
+          } catch (apiError: any) {
+            // L'API n'est pas disponible, on affiche un message informatif
+            setError(
+              "⚠️ L'API de recharge Things Mobile n'est pas disponible publiquement. " +
+              "Veuillez effectuer la recharge manuellement via le portail IoT : https://www.thingsmobile.com"
+            );
+            throw apiError;
+          }
           break;
 
         case "Truphone":
-          // Truphone: vérifier si l'API supporte la recharge
-          console.log(`🔄 Recharge Truphone (simulée): ${sim.iccid} - ${volumeNum} MB`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          success = true;
-          setError("⚠️ Truphone: Recharge simulée (API non disponible)");
+          console.log(`🔄 Recharge Truphone: ${sim.iccid} - ${volumeNum} MB`);
+          try {
+            success = await rechargeTruphoneSim(sim.iccid, volumeNum);
+          } catch (apiError: any) {
+            // L'API nécessite un mapping de plans, on affiche un message informatif
+            setError(
+              "⚠️ La recharge Truphone nécessite une configuration de plans tarifaires. " +
+              "Veuillez effectuer la recharge manuellement via le portail IoT ou configurer Auto Top-Up : https://docs.things.1global.com/docs/get-started/configure-auto-topup/"
+            );
+            throw apiError;
+          }
           break;
 
         default:
@@ -93,7 +106,12 @@ export function RechargeSimDialog({
     } catch (err: any) {
       console.error("Erreur de recharge:", err);
       const message = err.response?.data?.message || err.message || "Erreur inconnue";
-      setError(`Échec de la recharge: ${message}`);
+
+      // Ne pas écraser le message d'erreur déjà défini
+      if (!error) {
+        setError(`Échec de la recharge: ${message}`);
+      }
+
       toast({
         title: "Échec de la recharge",
         description: message,
@@ -182,17 +200,28 @@ export function RechargeSimDialog({
             </Alert>
           )}
 
-          {(sim.provider === "Things Mobile" || sim.provider === "Truphone") && (
+          {sim.provider === "Things Mobile" && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                <strong>{sim.provider}:</strong> Recharge simulée (API de recharge non disponible publiquement)
+                <strong>Things Mobile:</strong> L'API de recharge n'est pas documentée publiquement.
+                Contactez Things Mobile pour obtenir l'accès à l'endpoint de recharge ou utilisez le portail IoT.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {sim.provider === "Truphone" && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                <strong>Truphone:</strong> La recharge nécessite un changement de plan tarifaire.
+                Configurez les plans dans votre compte ou utilisez Auto Top-Up.
               </AlertDescription>
             </Alert>
           )}
 
           {/* Error message */}
-          {error && !error.includes("simulée") && (
+          {error && (
             <Alert variant="destructive">
               <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>

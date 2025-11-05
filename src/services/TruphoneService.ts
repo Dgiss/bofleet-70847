@@ -205,3 +205,97 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
     throw error;
   }
 };
+
+/**
+ * Change le plan tarifaire d'une carte SIM Truphone/1GLOBAL
+ *
+ * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de "recharge" de données.
+ * Les "top-ups" se font généralement en changeant le plan tarifaire (rate plan/subscription).
+ * Consultez la documentation API complète : https://iot.truphone.com/api/doc/#!/api
+ *
+ * @param iccid - ICCID de la carte SIM
+ * @param ratePlanId - ID du nouveau plan tarifaire
+ * @param immediate - Si true, applique immédiatement. Si false, applique au prochain cycle de facturation
+ * @returns true si le changement réussit, false sinon
+ */
+export const changeTruphoneRatePlan = async (
+  iccid: string,
+  ratePlanId: string,
+  immediate: boolean = false
+): Promise<boolean> => {
+  try {
+    const headers = await getHeaders();
+    console.log(`Truphone: Changement de plan tarifaire pour ${iccid} -> ${ratePlanId}`);
+
+    const response = await axios.put(
+      `${BASE_URL}/v2.2/sims/${iccid}/subscription`,
+      {
+        rate_plan_id: ratePlanId,
+        apply_immediately: immediate,
+      },
+      { headers }
+    );
+
+    console.log("Truphone: Plan tarifaire changé avec succès", response.data);
+    return response.status === 200 || response.status === 204;
+  } catch (error: any) {
+    console.error("Truphone change rate plan error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    throw new Error(
+      `Échec du changement de plan tarifaire Truphone: ${error.response?.data?.message || error.message}`
+    );
+  }
+};
+
+/**
+ * "Recharge" une carte SIM Truphone/1GLOBAL
+ *
+ * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de recharge de données.
+ * Cette fonction est un wrapper qui simule une recharge en changeant le plan tarifaire.
+ * Pour une vraie recharge, vous devez :
+ * 1. Créer des plans tarifaires prédéfinis dans votre compte Truphone
+ * 2. Mapper les volumes de recharge aux IDs de plans
+ * 3. Utiliser changeTruphoneRatePlan() avec le bon plan
+ *
+ * Alternative : Configurez un "Auto Top-Up" dans le portail Truphone.
+ * Documentation : https://docs.things.1global.com/docs/get-started/configure-auto-topup/
+ *
+ * @param iccid - ICCID de la carte SIM
+ * @param volumeMB - Volume de données souhaité (utilisé pour déterminer le plan)
+ * @returns true si la recharge réussit, false sinon
+ * @throws Error car non implémenté sans mapping de plans
+ */
+export const rechargeTruphoneSim = async (
+  iccid: string,
+  volumeMB: number
+): Promise<boolean> => {
+  console.warn("⚠️ Truphone: Fonction de recharge non implémentée (pas d'endpoint direct de recharge)");
+  console.log(`Truphone: Recharge demandée pour ${iccid} - ${volumeMB} MB`);
+
+  // TODO: Implémenter le mapping volume -> rate plan ID
+  // Exemple d'implémentation possible:
+  /*
+  const ratePlanMap: Record<number, string> = {
+    100: "plan_id_100mb",
+    500: "plan_id_500mb",
+    1000: "plan_id_1gb",
+    5000: "plan_id_5gb",
+  };
+
+  const ratePlanId = ratePlanMap[volumeMB];
+  if (!ratePlanId) {
+    throw new Error(`Aucun plan tarifaire configuré pour ${volumeMB} MB`);
+  }
+
+  return await changeTruphoneRatePlan(iccid, ratePlanId, true);
+  */
+
+  throw new Error(
+    "La recharge Truphone nécessite un mapping de plans tarifaires. " +
+    "Configurez les plans dans votre compte Truphone puis implémentez le mapping dans rechargeTruphoneSim(). " +
+    "Ou utilisez la fonction Auto Top-Up du portail : https://docs.things.1global.com/docs/get-started/configure-auto-topup/"
+  );
+};
