@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable";
-import { Loader2, RefreshCw, Search, AlertTriangle, CheckCircle2, XCircle, Zap, ChevronDown } from "lucide-react";
+import { Loader2, RefreshCw, Search, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
-import { useInfiniteTruphoneSims } from "@/hooks/useInfiniteTruphoneSims";
+import { listTruphoneSims } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
@@ -111,27 +111,21 @@ export function MultiProviderSimTab() {
     { provider: "Truphone", status: "loading", count: 0 },
   ]);
 
-  // Hook pour le lazy loading Truphone
-  const {
-    sims: truphoneSims,
-    loading: truphoneLoading,
-    hasMore: truphoneHasMore,
-    loadMore: loadMoreTruphone,
-    reset: resetTruphone,
-  } = useInfiniteTruphoneSims();
-
   const fetchAllSims = async (): Promise<UnifiedSim[]> => {
     const allSims: UnifiedSim[] = [];
     const newStatuses: ProviderStatus[] = [];
 
-    // Things Mobile
-    try {
-      console.log("🔄 Chargement Things Mobile...");
-      const tmResult = await listThingsMobileSims({ pageSize: 500 });
-      tmResult.sims.forEach((sim) => {
-        allSims.push({
+    console.log("🔄 Chargement de tous les opérateurs en parallèle...");
+    const startTime = Date.now();
+
+    // Charger tous les opérateurs EN PARALLÈLE avec Promise.allSettled
+    const results = await Promise.allSettled([
+      // Things Mobile
+      listThingsMobileSims({ pageSize: 500 }).then((tmResult) => ({
+        provider: "Things Mobile" as const,
+        sims: tmResult.sims.map((sim) => ({
           id: `tm-${sim.iccid || sim.msisdn}`,
-          provider: "Things Mobile",
+          provider: "Things Mobile" as const,
           msisdn: sim.msisdn || "—",
           iccid: sim.iccid || "—",
           status: sim.status || "unknown",
@@ -139,87 +133,77 @@ export function MultiProviderSimTab() {
           tag: sim.tag,
           dataUsage: formatBytes(sim.monthlyTrafficBytes),
           lastConnection: sim.lastConnectionDate,
-        });
-      });
-      newStatuses.push({
-        provider: "Things Mobile",
-        status: "success",
-        count: tmResult.sims.length,
-      });
-      console.log(`✅ Things Mobile: ${tmResult.sims.length} SIMs`);
-    } catch (error: any) {
-      console.error("❌ Things Mobile error:", error);
-      newStatuses.push({
-        provider: "Things Mobile",
-        status: "error",
-        count: 0,
-        error: error.message,
-      });
-    }
+        })),
+      })),
 
-    // Phenix
-    try {
-      console.log("🔄 Chargement Phenix...");
-      const phenixSims = await listPhenixSims();
-      phenixSims.forEach((sim) => {
-        allSims.push({
+      // Phenix
+      listPhenixSims().then((phenixSims) => ({
+        provider: "Phenix" as const,
+        sims: phenixSims.map((sim) => ({
           id: `phenix-${sim.iccid || sim.msisdn}`,
-          provider: "Phenix",
+          provider: "Phenix" as const,
           msisdn: sim.msisdn || "—",
           iccid: sim.iccid || "—",
           status: sim.status || "unknown",
-        });
-      });
-      newStatuses.push({
-        provider: "Phenix",
-        status: "success",
-        count: phenixSims.length,
-      });
-      console.log(`✅ Phenix: ${phenixSims.length} SIMs`);
-    } catch (error: any) {
-      console.error("❌ Phenix error:", error);
-      newStatuses.push({
-        provider: "Phenix",
-        status: "error",
-        count: 0,
-        error: error.message,
-      });
-    }
+        })),
+      })),
 
+      // Truphone (toutes les pages)
+      listTruphoneSims().then((truphoneSims) => ({
+        provider: "Truphone" as const,
+        sims: truphoneSims.map((sim) => ({
+          id: `truphone-${sim.iccid || sim.simId}`,
+          provider: "Truphone" as const,
+          msisdn: sim.msisdn || "—",
+          iccid: sim.iccid || "—",
+          status: sim.status || "unknown",
+          label: sim.label,
+          description: sim.description,
+          imei: sim.imei,
+          servicePack: sim.servicePack,
+          simType: sim.simType,
+          organizationName: sim.organizationName,
+        })),
+      })),
+    ]);
+
+    // Traiter les résultats
+    results.forEach((result, index) => {
+      const providerNames = ["Things Mobile", "Phenix", "Truphone"];
+      const providerName = providerNames[index];
+
+      if (result.status === "fulfilled") {
+        const data = result.value;
+        allSims.push(...data.sims);
+        newStatuses.push({
+          provider: providerName,
+          status: "success",
+          count: data.sims.length,
+        });
+        console.log(`✅ ${providerName}: ${data.sims.length} SIMs`);
+      } else {
+        console.error(`❌ ${providerName} error:`, result.reason);
+        newStatuses.push({
+          provider: providerName,
+          status: "error",
+          count: 0,
+          error: result.reason?.message || "Erreur inconnue",
+        });
+      }
+    });
+
+    const duration = Date.now() - startTime;
     setProviderStatuses(newStatuses);
-    console.log(`📊 Total (TM + Phenix): ${allSims.length} SIMs chargées`);
+    console.log(`📊 Total: ${allSims.length} SIMs chargées en ${duration}ms`);
     return allSims;
   };
 
-  const { data: otherProvidersSims = [], isLoading, error, refetch } = useQuery({
-    queryKey: ["other-providers-sims"],
+  const { data: allSims = [], isLoading, error, refetch } = useQuery({
+    queryKey: ["all-sims"],
     queryFn: fetchAllSims,
     refetchInterval: 120000, // Rafraîchir toutes les 2 minutes
     retry: 1,
   });
-
-  // Charger la première page de Truphone au montage
-  useEffect(() => {
-    loadMoreTruphone();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Combiner toutes les SIMs (autres providers + Truphone lazy loaded)
-  const truphoneUnifiedSims: UnifiedSim[] = truphoneSims.map((sim) => ({
-    id: `truphone-${sim.iccid || sim.simId}`,
-    provider: "Truphone",
-    msisdn: sim.msisdn || "—",
-    iccid: sim.iccid || "—",
-    status: sim.status || "unknown",
-    label: sim.label,
-    description: sim.description,
-    imei: sim.imei,
-    servicePack: sim.servicePack,
-    simType: sim.simType,
-    organizationName: sim.organizationName,
-  }));
-
-  const allSims = [...otherProvidersSims, ...truphoneUnifiedSims];
 
   const filteredSims = allSims.filter((sim) => {
     if (!searchValue) return true;
@@ -284,28 +268,11 @@ export function MultiProviderSimTab() {
     },
   ];
 
-  // Mettre à jour le statut Truphone
-  useEffect(() => {
-    if (truphoneSims.length > 0 && !truphoneLoading) {
-      setProviderStatuses(prev => prev.map(p =>
-        p.provider === "Truphone"
-          ? { ...p, status: "success", count: truphoneSims.length }
-          : p
-      ));
-    } else if (truphoneLoading && truphoneSims.length === 0) {
-      setProviderStatuses(prev => prev.map(p =>
-        p.provider === "Truphone"
-          ? { ...p, status: "loading", count: 0 }
-          : p
-      ));
-    }
-  }, [truphoneSims.length, truphoneLoading]);
-
   const stats = {
     total: allSims.length,
     thingsMobile: allSims.filter((s) => s.provider === "Things Mobile").length,
     phenix: allSims.filter((s) => s.provider === "Phenix").length,
-    truphone: truphoneSims.length,
+    truphone: allSims.filter((s) => s.provider === "Truphone").length,
   };
 
   return (
@@ -356,15 +323,11 @@ export function MultiProviderSimTab() {
               />
             </div>
             <Button
-              onClick={() => {
-                refetch();
-                resetTruphone();
-                setTimeout(() => loadMoreTruphone(), 100);
-              }}
+              onClick={() => refetch()}
               variant="outline"
-              disabled={isLoading || truphoneLoading}
+              disabled={isLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading || truphoneLoading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Actualiser
             </Button>
           </div>
@@ -523,37 +486,12 @@ export function MultiProviderSimTab() {
             <EnhancedDataTable
               data={filteredSims}
               columns={columns}
-              loading={isLoading || truphoneLoading}
+              loading={isLoading}
               enablePagination={true}
             />
           </div>
 
-          {/* Bouton Charger plus pour Truphone */}
-          {truphoneHasMore && !searchValue && (
-            <div className="flex justify-center pt-4">
-              <Button
-                onClick={() => loadMoreTruphone()}
-                disabled={truphoneLoading}
-                variant="outline"
-                size="lg"
-                className="gap-2"
-              >
-                {truphoneLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Chargement...
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-4 w-4" />
-                    Charger plus de SIMs Truphone ({truphoneSims.length} chargées)
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
-          {!isLoading && !truphoneLoading && filteredSims.length === 0 && (
+          {!isLoading && filteredSims.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
               <AlertTriangle className="h-5 w-5" />
               <p>Aucune carte SIM trouvée</p>
