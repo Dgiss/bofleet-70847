@@ -287,6 +287,73 @@ export const getTruphoneBalance = async (
   }
 };
 
+/**
+ * Récupère une page de SIMs Truphone pour le lazy loading
+ *
+ * @param page - Numéro de la page (commence à 1)
+ * @param perPage - Nombre de SIMs par page (défaut: 500, max: 500)
+ * @returns Object avec sims, hasMore et totalLoaded
+ */
+export const listTruphoneSimsPaged = async (
+  page: number = 1,
+  perPage: number = 500
+): Promise<{ sims: TruphoneSim[]; hasMore: boolean; page: number }> => {
+  try {
+    const headers = await getHeaders();
+    console.log(`Truphone: Récupération page ${page}...`);
+
+    const response = await axios.get(`${BASE_URL}/v2.2/sims`, {
+      headers,
+      params: {
+        page,
+        per_page: perPage,
+      },
+    });
+
+    const sims = response.data.sims ?? response.data.results ?? response.data ?? [];
+
+    if (!Array.isArray(sims)) {
+      console.error("Truphone: La réponse n'est pas un tableau:", sims);
+      return { sims: [], hasMore: false, page };
+    }
+
+    console.log(`Truphone: Page ${page} - ${sims.length} SIM(s) récupérée(s)`);
+
+    const mappedSims = sims.map((sim: any) => {
+      const rawStatus = extractSimStatus(sim);
+
+      return {
+        simId: sim.id ?? sim.simId ?? sim.sim_id ?? sim.iccid ?? "",
+        iccid: sim.iccid ?? "",
+        msisdn: sim.msisdn ?? sim.primaryMsisdn ?? undefined,
+        status: normalizeTruphoneStatus(rawStatus),
+        imsi: sim.imsi ?? sim.primaryImsi ?? undefined,
+      };
+    });
+
+    // Il y a plus de pages si on a reçu exactement perPage SIMs
+    const hasMore = sims.length === perPage;
+
+    return {
+      sims: mappedSims,
+      hasMore,
+      page,
+    };
+  } catch (error: any) {
+    console.error("Truphone list SIMs paged error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    throw error;
+  }
+};
+
+/**
+ * Récupère TOUTES les SIMs Truphone (toutes les pages)
+ * ATTENTION: Peut être lent si vous avez beaucoup de SIMs (1500+)
+ * Pour le lazy loading, utilisez listTruphoneSimsPaged à la place
+ */
 export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
   try {
     const headers = await getHeaders();
