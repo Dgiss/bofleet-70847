@@ -730,6 +730,64 @@ const RATE_PLAN_CONFIG: TruphoneRatePlan[] = [
 ];
 
 /**
+ * Récupère tous les plans tarifaires Truphone disponibles
+ *
+ * Essaie plusieurs méthodes dans l'ordre :
+ * 1. Via l'API /rate_plans
+ * 2. Via la configuration manuelle RATE_PLAN_CONFIG
+ * 3. Via détection automatique depuis les SIMs existantes
+ *
+ * @returns Liste des plans tarifaires disponibles
+ */
+export const getAvailableTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
+  // 1. Tenter de récupérer les plans tarifaires via l'API
+  let ratePlans = await getTruphoneRatePlans();
+
+  // 2. Si l'API ne retourne rien, utiliser la configuration manuelle
+  if (ratePlans.length === 0 && RATE_PLAN_CONFIG.length > 0) {
+    console.log("Truphone: Utilisation de la configuration manuelle RATE_PLAN_CONFIG");
+    ratePlans = RATE_PLAN_CONFIG;
+  }
+
+  // 3. Si toujours vide, essayer de détecter automatiquement depuis les SIMs
+  if (ratePlans.length === 0) {
+    console.log("Truphone: Tentative de détection automatique des rate plans depuis les SIMs...");
+    ratePlans = await detectRatePlansFromSims();
+  }
+
+  return ratePlans;
+};
+
+/**
+ * 🚀 Recharge une carte SIM Truphone en changeant son plan tarifaire
+ *
+ * @param iccid - ICCID de la carte SIM
+ * @param planId - ID du plan tarifaire à appliquer
+ * @param nextBillingCycle - Si true, applique au prochain cycle. Si false (défaut), applique immédiatement.
+ * @returns true si la recharge réussit
+ */
+export const rechargeTruphoneSimByPlan = async (
+  iccid: string,
+  planId: string,
+  nextBillingCycle: boolean = false
+): Promise<boolean> => {
+  try {
+    console.log(`Truphone: Changement de plan pour ${iccid} - Plan ID: ${planId}`);
+    return await changeTruphoneRatePlan(iccid, planId, nextBillingCycle);
+  } catch (error: any) {
+    console.error("❌ Truphone recharge error:", {
+      message: error.message,
+      iccid,
+      planId,
+    });
+
+    throw new Error(
+      `Échec de la recharge Truphone pour ${iccid}: ${error.message}`
+    );
+  }
+};
+
+/**
  * "Recharge" une carte SIM Truphone/1GLOBAL
  *
  * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de recharge de données.
@@ -764,20 +822,8 @@ export const rechargeTruphoneSim = async (
   try {
     console.log(`Truphone: Recharge demandée pour ${iccid} - ${volumeMB} MB`);
 
-    // 1. Tenter de récupérer les plans tarifaires via l'API
-    let ratePlans = await getTruphoneRatePlans();
-
-    // 2. Si l'API ne retourne rien, utiliser la configuration manuelle
-    if (ratePlans.length === 0 && RATE_PLAN_CONFIG.length > 0) {
-      console.log("Truphone: Utilisation de la configuration manuelle RATE_PLAN_CONFIG");
-      ratePlans = RATE_PLAN_CONFIG;
-    }
-
-    // 3. Si toujours vide, essayer de détecter automatiquement depuis les SIMs
-    if (ratePlans.length === 0) {
-      console.log("Truphone: Tentative de détection automatique des rate plans depuis les SIMs...");
-      ratePlans = await detectRatePlansFromSims();
-    }
+    // Récupérer les plans disponibles
+    const ratePlans = await getAvailableTruphoneRatePlans();
 
     if (ratePlans.length === 0) {
       throw new Error(
