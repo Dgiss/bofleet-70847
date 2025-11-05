@@ -12,6 +12,14 @@ import { listThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
 import { useInfiniteTruphoneSims } from "@/hooks/useInfiniteTruphoneSims";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface UnifiedSim {
   id: string;
@@ -95,6 +103,7 @@ const statusToDisplayText = (status: string): string => {
 export function MultiProviderSimTab() {
   const [searchValue, setSearchValue] = useState("");
   const [selectedSimForRecharge, setSelectedSimForRecharge] = useState<UnifiedSim | null>(null);
+  const [selectedOperator, setSelectedOperator] = useState<string>("all");
   const { toast } = useToast();
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([
     { provider: "Things Mobile", status: "loading", count: 0 },
@@ -385,6 +394,101 @@ export function MultiProviderSimTab() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Donut Chart - Consommation par opérateur */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Distribution des SIMs par opérateur</CardTitle>
+                <Select value={selectedOperator} onValueChange={setSelectedOperator}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Tous les opérateurs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les opérateurs</SelectItem>
+                    <SelectItem value="Things Mobile">Things Mobile</SelectItem>
+                    <SelectItem value="Phenix">Phenix</SelectItem>
+                    <SelectItem value="Truphone">Truphone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const COLORS = {
+                  "Things Mobile": "#10b981",
+                  "Phenix": "#8b5cf6",
+                  "Truphone": "#3b82f6",
+                };
+
+                const chartData =
+                  selectedOperator === "all"
+                    ? [
+                        {
+                          name: "Things Mobile",
+                          value: stats.thingsMobile,
+                          color: COLORS["Things Mobile"],
+                        },
+                        { name: "Phenix", value: stats.phenix, color: COLORS["Phenix"] },
+                        { name: "Truphone", value: stats.truphone, color: COLORS["Truphone"] },
+                      ].filter((item) => item.value > 0)
+                    : [
+                        {
+                          name: selectedOperator,
+                          value:
+                            selectedOperator === "Things Mobile"
+                              ? stats.thingsMobile
+                              : selectedOperator === "Phenix"
+                                ? stats.phenix
+                                : stats.truphone,
+                          color: COLORS[selectedOperator as keyof typeof COLORS],
+                        },
+                      ];
+
+                const totalSims =
+                  selectedOperator === "all"
+                    ? stats.total
+                    : selectedOperator === "Things Mobile"
+                      ? stats.thingsMobile
+                      : selectedOperator === "Phenix"
+                        ? stats.phenix
+                        : stats.truphone;
+
+                return (
+                  <div className="flex flex-col items-center">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                        >
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => [`${value} SIMs`, "Nombre"]}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="text-center mt-4">
+                      <p className="text-3xl font-bold text-primary">{totalSims}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedOperator === "all" ? "Total SIMs" : `SIMs ${selectedOperator}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
 
           {/* Statistics Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
