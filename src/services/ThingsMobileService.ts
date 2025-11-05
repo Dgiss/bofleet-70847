@@ -5,7 +5,6 @@ const BASE_URL = "/api/thingsmobile/services/business-api";
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "",
-  parseNodeValue: true,
   parseAttributeValue: true,
   textNodeName: "value",
   trimValues: true,
@@ -180,7 +179,7 @@ export const getThingsMobileSimStatus = async (
     throw new Error("Merci de renseigner un MSISDN ou un ICCID.");
   }
 
-  const result = await callThingsMobileApi("simStatus", params);
+  const result = await callThingsMobileApi("simStatus", params as Record<string, string | number | undefined>);
   const simsNode = result?.sims?.sim;
   if (!simsNode) {
     return null;
