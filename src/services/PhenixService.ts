@@ -31,6 +31,7 @@ export interface PhenixRealtimeConsumption {
 const ensureCredentials = () => {
   const username = import.meta.env.VITE_PHENIX_USERNAME;
   const password = import.meta.env.VITE_PHENIX_PASSWORD;
+  const partenaireId = import.meta.env.VITE_PHENIX_PARTENAIRE_ID;
 
   if (!username || !password) {
     throw new Error(
@@ -38,7 +39,13 @@ const ensureCredentials = () => {
     );
   }
 
-  return { username, password };
+  if (!partenaireId) {
+    throw new Error(
+      "Phenix partner ID missing. Please define VITE_PHENIX_PARTENAIRE_ID in your environment."
+    );
+  }
+
+  return { username, password, partenaireId };
 };
 
 export const authenticatePhenix = async (): Promise<string> => {
@@ -63,27 +70,18 @@ export const authenticatePhenix = async (): Promise<string> => {
 
     console.log("Phenix: Réponse d'authentification reçue", response.data);
 
-    // Le token peut être dans différents champs selon l'API
-    // Priorité au working_token si présent (utilisé pour les appels API)
-    authToken =
-      response.data.working_token ||
-      response.data.workingToken ||
-      response.data.token ||
-      response.data.access_token ||
-      response.data.jwt;
+    // IMPORTANT : Selon la documentation Phenix, c'est l'access_token (Token JWT) qui doit être utilisé
+    // Le working_token est juste un champ informatif
+    authToken = response.data.access_token || response.data.token || response.data.jwt;
 
     if (!authToken) {
       console.error("Phenix: Structure de réponse inattendue:", response.data);
-      throw new Error("Token non trouvé dans la réponse");
+      throw new Error("Token d'accès (access_token) non trouvé dans la réponse");
     }
 
-    console.log("Phenix: Authentification réussie, token reçu:", authToken.substring(0, 20) + "...");
-    console.log("Phenix: Type de token utilisé:",
-      response.data.working_token ? "working_token" :
-      response.data.workingToken ? "workingToken" :
-      response.data.token ? "token" :
-      response.data.access_token ? "access_token" : "jwt"
-    );
+    console.log("Phenix: Authentification réussie");
+    console.log("Phenix: Token reçu (JWT):", authToken.substring(0, 30) + "...");
+    console.log("Phenix: Expires in:", response.data.expires_in, "secondes");
     return authToken;
   } catch (error: any) {
     console.error("Phenix authentication error:", {
@@ -111,14 +109,18 @@ const ensureAuthenticated = async (): Promise<string> => {
 
 export const listPhenixSims = async (): Promise<PhenixSim[]> => {
   const token = await ensureAuthenticated();
+  const { partenaireId } = ensureCredentials();
 
   try {
     console.log("Phenix: Récupération de la liste des SIMs...");
-    console.log("Phenix: Token utilisé:", token.substring(0, 20) + "...");
+    console.log("Phenix: PartenaireId:", partenaireId);
     const response = await axios.get(`${BASE_URL}/GsmApi/V2/GetInfoSimList`, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+      },
+      params: {
+        partenaireId,
       },
     });
 
@@ -154,6 +156,7 @@ export const listPhenixSims = async (): Promise<PhenixSim[]> => {
 
 export const getPhenixSimStatus = async (msisdn: string): Promise<PhenixSim | null> => {
   const token = await ensureAuthenticated();
+  const { partenaireId } = ensureCredentials();
 
   try {
     console.log(`Phenix: Consultation du statut de la ligne ${msisdn}...`);
@@ -162,7 +165,10 @@ export const getPhenixSimStatus = async (msisdn: string): Promise<PhenixSim | nu
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      params: { msisdn },
+      params: {
+        msisdn,
+        partenaireId,
+      },
     });
 
     console.log("Phenix: Statut reçu:", response.data);
@@ -188,14 +194,19 @@ export const getPhenixRealtimeConsumption = async (
   msisdn: string
 ): Promise<PhenixRealtimeConsumption | null> => {
   const token = await ensureAuthenticated();
+  const { partenaireId } = ensureCredentials();
 
   try {
     const response = await axios.post(
       `${BASE_URL}/GsmApi/V2/SdtrConso`,
-      { msisdn },
+      {
+        partenaireId,
+        msisdn,
+      },
       {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       }
     );
@@ -219,16 +230,18 @@ export const getPhenixConsumptionHistory = async (
   year: number
 ): Promise<PhenixConsumption | null> => {
   const token = await ensureAuthenticated();
+  const { partenaireId } = ensureCredentials();
 
   try {
     const response = await axios.get(`${BASE_URL}/GsmApi/GetConsoMsisdnFromCDR`, {
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
       params: {
+        partenaireId,
         msisdn,
-        month,
-        year,
+        moisAnnee: `${String(month).padStart(2, '0')}${year}`, // Format MMYYYY
       },
     });
 
@@ -248,29 +261,51 @@ export const getPhenixConsumptionHistory = async (
   }
 };
 
+/**
+ * Recharge une carte SIM Phenix avec des données
+ *
+ * @param msisdn - Numéro MSISDN de la ligne
+ * @param volumeMB - Volume de données à ajouter en MB
+ * @param codeZone - Zone de recharge (par défaut : ZoneC = UE + DOM + Suisse + Andorre)
+ *                   Zones disponibles : ZoneA, ZoneB, ZoneC, ZoneD, ZoneE, ZoneF, ZoneG, ZoneH,
+ *                   FRANCE_BLOQUEE, FRANCE_FUP, HORS_EUROPE
+ * @returns true si la recharge réussit, false sinon
+ */
 export const rechargePhenixSim = async (
   msisdn: string,
-  volume: number
+  volumeMB: number,
+  codeZone: string = "ZoneC"
 ): Promise<boolean> => {
   const token = await ensureAuthenticated();
+  const { partenaireId } = ensureCredentials();
 
   try {
+    console.log(`Phenix: Recharge de ${volumeMB} MB pour ${msisdn} (Zone: ${codeZone})`);
+
     const response = await axios.post(
       `${BASE_URL}/GsmApi/V2/MsisdnAddDataRecharge`,
       {
+        partenaireId,
         msisdn,
-        volume,
+        volumeDataEnMo: volumeMB,
+        codeZone,
       },
       {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       }
     );
 
+    console.log("Phenix: Recharge réussie", response.data);
     return response.status === 200;
-  } catch (error) {
-    console.error("Phenix recharge error:", error);
+  } catch (error: any) {
+    console.error("Phenix recharge error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
     return false;
   }
 };
