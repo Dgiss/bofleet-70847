@@ -18,6 +18,7 @@ import BoitierPage from "./pages/BoitierPage";
 import ApiDiagnosticPage from "./pages/ApiDiagnosticPage";
 import PhenixTestPage from "./pages/PhenixTestPage";
 import TruphoneTestPage from "./pages/TruphoneTestPage";
+import RechargeTestPage from "./pages/RechargeTestPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="api-diagnostic" element={<ApiDiagnosticPage />} />
               <Route path="phenix-test" element={<PhenixTestPage />} />
               <Route path="truphone-test" element={<TruphoneTestPage />} />
+              <Route path="recharge-test" element={<RechargeTestPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

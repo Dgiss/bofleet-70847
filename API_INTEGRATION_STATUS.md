@@ -10,14 +10,14 @@ L'API Things Mobile fonctionne correctement avec les credentials configurés.
 
 ---
 
-## ⚠️ Phenix - EN COURS DE DIAGNOSTIC
+## ⚠️ Phenix - ERREUR 403 FORBIDDEN
 
-**Status** : ⚠️ Erreur d'authentification (401 Unauthorized)
+**Status** : ❌ Erreur d'autorisation (403 Forbidden)
 **Documentation** : ✅ Reçue et implémentée
 **Configuration** : Credentials configurés
 
 ### Problème
-L'endpoint d'authentification retourne une erreur 401 (Non autorisé).
+L'authentification réussit (200 OK, access_token reçu), mais l'endpoint `/GsmApi/V2/GetInfoSimList` retourne une erreur 403 (Interdit).
 
 ### Documentation Officielle
 Endpoint confirmé par la documentation Phenix :
@@ -54,11 +54,11 @@ Ouvrez la console du navigateur et testez l'API Phenix depuis `/api-diagnostic`.
 
 ---
 
-## 🔧 Truphone - CONFIGURATION MISE À JOUR
+## ✅ Truphone - FONCTIONNEL
 
-**Status** : 🔧 Configuration corrigée, en cours de test
+**Status** : ✅ Opérationnel (50 SIMs récupérées)
 **Documentation** : ✅ Reçue et implémentée (OpenAPI v2.2)
-**Configuration** : Credentials configurés
+**Configuration** : Complète
 
 ### Changements effectués
 La documentation OpenAPI complète a été reçue et implémentée.
@@ -81,8 +81,13 @@ Authentication: Token [api_key]
 3. **Endpoints** : `/v1/sims` → `/api/v2.2/sims`
 4. **Proxy Vite** : Mis à jour pour pointer vers `iot.truphone.com`
 
-### Test en cours
-Utiliser la page `/api-diagnostic` pour tester la connexion avec la nouvelle configuration
+### Test effectué ✅
+Date: 4 Novembre 2025
+
+**Résultat**: API fonctionnelle
+- 50 SIMs récupérées avec succès
+- Authentification Token correcte
+- Endpoints v2.2 validés
 
 ---
 
@@ -106,21 +111,25 @@ VITE_TRUPHONE_PASSWORD=***configured***
 ### Proxies configurés (vite.config.ts)
 ```typescript
 '/api/thingsmobile' → 'https://api.thingsmobile.com' ✅
-'/api/phenix' → 'https://api.phenix-partner.fr' ✅
-'/api/truphone' → 'https://iot.truphone.com' 🔧
+'/api/phenix' → 'https://api.phenix-partner.fr' ⚠️ (403 sur GetInfoSimList)
+'/api/truphone' → 'https://iot.truphone.com' ✅
 ```
 
 ---
 
 ## 📝 Recommandations
 
-### Pour Phenix
+### Pour Phenix (Erreur 403)
+1. **Authentification fonctionne** : Le token est bien récupéré
+2. **Problème de permissions** : Le compte n'a pas les droits d'accès à `/GsmApi/V2/GetInfoSimList`
+
+**Actions requises** :
 1. Contactez votre représentant commercial Phenix
-2. Demandez :
-   - Confirmation de l'endpoint d'authentification
-   - Format exact de la requête d'authentification
-   - Exemples de code (curl/Postman)
-3. Testez avec Postman avant de modifier le code
+2. Demandez l'activation des permissions API pour :
+   - `/GsmApi/V2/GetInfoSimList` (Liste des SIMs)
+   - `/GsmApi/V2/MsisdnConsult` (Statut d'une ligne)
+   - `/GsmApi/V2/SdtrConso` (Consommation temps réel)
+3. Vérifiez que le compte `c.noel@geoloc-systems.com` a les droits API complets
 
 ### Pour Truphone
 1. Accédez au portail développeur Truphone
