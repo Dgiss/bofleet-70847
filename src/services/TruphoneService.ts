@@ -425,10 +425,11 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
       supportsTestMode: plan.supportsTestMode ?? false,
     }));
   } catch (error: any) {
-    // Si l'endpoint n'est pas accessible (403 ou 404), retourner une liste vide
-    if (error.response?.status === 403 || error.response?.status === 404) {
-      console.warn(`⚠️ Truphone: L'endpoint /rate_plan n'est pas accessible (${error.response.status})`);
-      console.warn("⚠️ Truphone: Cet endpoint peut nécessiter des permissions spéciales ou ne pas être disponible pour votre compte");
+    // Si l'endpoint n'est pas accessible ou redirige vers login (Network Error), retourner une liste vide
+    if (error.response?.status === 403 || error.response?.status === 404 || error.message === 'Network Error') {
+      console.warn(`⚠️ Truphone: L'endpoint /rate_plan n'est pas accessible${error.response?.status ? ` (${error.response.status})` : ' (Network Error - redirige vers login)'}`);
+      console.warn("⚠️ Truphone: Cet endpoint semble être une interface web et non une API REST");
+      console.warn("⚠️ Truphone: Utilisation de la détection automatique depuis les SIMs...");
       return [];
     }
 
@@ -437,7 +438,8 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
       response: error.response?.data,
       status: error.response?.status,
     });
-    throw error;
+    // Ne pas throw, retourner vide pour permettre la détection automatique
+    return [];
   }
 };
 
