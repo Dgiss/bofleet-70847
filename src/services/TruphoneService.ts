@@ -346,8 +346,10 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
  * Documentation: 1Global IoT Portal API v2.1
  * Endpoint: GET /api/v2.1/rate_plans
  *
- * @returns Liste des plans tarifaires disponibles
- * @throws Error en cas d'échec
+ * NOTE: Cet endpoint peut ne pas être accessible selon votre compte Truphone.
+ * Si l'endpoint retourne 403, la fonction retourne une liste vide et log un avertissement.
+ *
+ * @returns Liste des plans tarifaires disponibles (ou vide si non accessible)
  */
 export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
   try {
@@ -378,6 +380,13 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
       currency: plan.currency ?? "EUR",
     }));
   } catch (error: any) {
+    // Si l'endpoint n'est pas accessible (403), retourner une liste vide
+    if (error.response?.status === 403) {
+      console.warn("⚠️ Truphone: L'endpoint /rate_plans n'est pas accessible (403 Forbidden)");
+      console.warn("⚠️ Truphone: Cet endpoint peut nécessiter des permissions spéciales ou ne pas être disponible pour votre compte");
+      return [];
+    }
+
     console.error("Truphone get rate plans error:", {
       message: error.message,
       response: error.response?.data,
@@ -454,18 +463,41 @@ export const changeTruphoneRatePlan = async (
 };
 
 /**
+ * Configuration des plans tarifaires pour la recharge
+ *
+ * Si l'API /rate_plans n'est pas accessible, vous pouvez configurer manuellement
+ * vos rate plans ici. Trouvez les IDs de vos plans dans le portail Truphone:
+ * https://iot.truphone.com/
+ *
+ * Exemple de configuration:
+ * const RATE_PLAN_CONFIG: TruphoneRatePlan[] = [
+ *   { id: "plan_id_100mb", name: "100MB Plan", dataAllowance: 100 },
+ *   { id: "plan_id_500mb", name: "500MB Plan", dataAllowance: 500 },
+ *   { id: "plan_id_1gb", name: "1GB Plan", dataAllowance: 1000 },
+ * ];
+ */
+const RATE_PLAN_CONFIG: TruphoneRatePlan[] = [
+  // TODO: Configurez vos plans tarifaires ici si l'API n'est pas accessible
+  // Exemple:
+  // { id: "votre_plan_id", name: "100MB", dataAllowance: 100 },
+];
+
+/**
  * "Recharge" une carte SIM Truphone/1GLOBAL
  *
  * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de recharge de données.
  * Cette fonction simule une recharge en changeant le plan tarifaire.
- * Elle récupère automatiquement les plans disponibles et sélectionne celui
- * qui correspond le mieux au volume demandé.
  *
  * Stratégie de sélection du plan:
- * 1. Récupère tous les plans tarifaires disponibles
- * 2. Filtre les plans qui ont un dataAllowance >= volumeMB
- * 3. Sélectionne le plan avec le dataAllowance le plus proche (optimal)
- * 4. Applique le changement de plan immédiatement
+ * 1. Tente de récupérer les plans tarifaires via l'API
+ * 2. Si l'API n'est pas accessible, utilise la configuration manuelle RATE_PLAN_CONFIG
+ * 3. Filtre les plans qui ont un dataAllowance >= volumeMB
+ * 4. Sélectionne le plan avec le dataAllowance le plus proche (optimal)
+ * 5. Applique le changement de plan
+ *
+ * Configuration manuelle:
+ * Si l'API /rate_plans n'est pas accessible (403), configurez manuellement vos plans
+ * dans la constante RATE_PLAN_CONFIG ci-dessus.
  *
  * Alternative : Configurez un "Auto Top-Up" dans le portail Truphone.
  * Documentation : https://docs.things.1global.com/docs/get-started/configure-auto-topup/
@@ -484,18 +516,29 @@ export const rechargeTruphoneSim = async (
   try {
     console.log(`Truphone: Recharge demandée pour ${iccid} - ${volumeMB} MB`);
 
-    // 1. Récupérer tous les plans tarifaires disponibles
-    const ratePlans = await getTruphoneRatePlans();
+    // 1. Tenter de récupérer les plans tarifaires via l'API
+    let ratePlans = await getTruphoneRatePlans();
+
+    // 2. Si l'API ne retourne rien, utiliser la configuration manuelle
+    if (ratePlans.length === 0) {
+      console.log("Truphone: Utilisation de la configuration manuelle RATE_PLAN_CONFIG");
+      ratePlans = RATE_PLAN_CONFIG;
+    }
 
     if (ratePlans.length === 0) {
       throw new Error(
-        "Aucun plan tarifaire disponible. Vérifiez votre configuration Truphone."
+        "Aucun plan tarifaire disponible.\n\n" +
+        "L'API /rate_plans n'est pas accessible (403 Forbidden) et aucun plan n'est configuré manuellement.\n\n" +
+        "Pour configurer manuellement vos plans:\n" +
+        "1. Trouvez les IDs de vos plans dans le portail Truphone: https://iot.truphone.com/\n" +
+        "2. Ajoutez-les dans la constante RATE_PLAN_CONFIG dans src/services/TruphoneService.ts\n\n" +
+        "Ou utilisez la fonction Auto Top-Up du portail: https://docs.things.1global.com/docs/get-started/configure-auto-topup/"
       );
     }
 
     console.log(`Truphone: ${ratePlans.length} plan(s) disponible(s) pour la sélection`);
 
-    // 2. Filtrer les plans qui ont suffisamment de données
+    // 3. Filtrer les plans qui ont suffisamment de données
     const suitablePlans = ratePlans.filter((plan) => {
       const allowance = plan.dataAllowance ?? 0;
       return allowance >= volumeMB;
@@ -523,7 +566,7 @@ export const rechargeTruphoneSim = async (
       return await changeTruphoneRatePlan(iccid, largestPlan.id, nextBillingCycle);
     }
 
-    // 3. Sélectionner le plan avec le dataAllowance le plus proche (optimal)
+    // 4. Sélectionner le plan avec le dataAllowance le plus proche (optimal)
     const optimalPlan = suitablePlans.reduce((best, plan) => {
       const bestAllowance = best.dataAllowance ?? Infinity;
       const planAllowance = plan.dataAllowance ?? Infinity;
@@ -534,7 +577,7 @@ export const rechargeTruphoneSim = async (
       `Truphone: Plan optimal sélectionné: ${optimalPlan.name} (${optimalPlan.dataAllowance} MB) pour une demande de ${volumeMB} MB`
     );
 
-    // 4. Appliquer le changement de plan
+    // 5. Appliquer le changement de plan
     return await changeTruphoneRatePlan(iccid, optimalPlan.id, nextBillingCycle);
   } catch (error: any) {
     console.error("❌ Truphone recharge error:", {
