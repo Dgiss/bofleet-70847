@@ -397,6 +397,92 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
 };
 
 /**
+ * Détecte automatiquement les rate plans utilisés par les SIMs existantes
+ *
+ * Cette fonction analyse toutes les SIMs pour extraire les informations de rate plan
+ * depuis l'objet subscription. Utile quand l'API /rate_plans n'est pas accessible.
+ *
+ * @returns Liste des rate plans détectés (dédupliqués)
+ */
+export const detectRatePlansFromSims = async (): Promise<TruphoneRatePlan[]> => {
+  try {
+    const headers = await getHeaders();
+    console.log("Truphone: Analyse des SIMs pour détecter les rate plans...");
+
+    const response = await axios.get(`${BASE_URL}/v2.2/sims`, {
+      headers,
+    });
+
+    const sims = response.data.sims ?? response.data.results ?? response.data ?? [];
+
+    if (!Array.isArray(sims)) {
+      console.error("Truphone: La réponse n'est pas un tableau:", sims);
+      return [];
+    }
+
+    // Map pour dédupliquer les plans par ID
+    const plansMap = new Map<string, TruphoneRatePlan>();
+
+    sims.forEach((sim: any, index: number) => {
+      // Afficher la structure de la première SIM pour debug
+      if (index === 0) {
+        console.log("📋 Structure de la première SIM (subscription):", sim.subscription);
+      }
+
+      // Chercher les infos de rate plan dans l'objet subscription
+      const subscription = sim.subscription;
+      if (!subscription) return;
+
+      const planId = subscription.service_pack_id ??
+                     subscription.servicePack?.id ??
+                     subscription.rate_plan_id ??
+                     subscription.ratePlan?.id;
+
+      if (planId && !plansMap.has(planId)) {
+        const plan: TruphoneRatePlan = {
+          id: planId,
+          name: subscription.service_pack_name ??
+                subscription.servicePack?.name ??
+                subscription.rate_plan_name ??
+                subscription.ratePlan?.name ??
+                `Plan ${planId}`,
+          description: subscription.service_pack_description ??
+                      subscription.servicePack?.description,
+          dataAllowance: subscription.data_allowance ??
+                        subscription.servicePack?.data_allowance ??
+                        subscription.dataAllowance,
+          validity: subscription.validity_days ??
+                   subscription.servicePack?.validity_days ??
+                   subscription.validity,
+          price: subscription.price ?? subscription.servicePack?.price,
+          currency: subscription.currency ?? subscription.servicePack?.currency ?? "EUR",
+        };
+
+        plansMap.set(planId, plan);
+        console.log(`✅ Rate plan détecté: ${plan.name} (${plan.id})`, plan);
+      }
+    });
+
+    const detectedPlans = Array.from(plansMap.values());
+    console.log(`🎯 Truphone: ${detectedPlans.length} rate plan(s) unique(s) détecté(s)`);
+
+    if (detectedPlans.length > 0) {
+      console.log("📝 Ajoutez ces plans dans RATE_PLAN_CONFIG:");
+      console.log(JSON.stringify(detectedPlans, null, 2));
+    }
+
+    return detectedPlans;
+  } catch (error: any) {
+    console.error("Truphone detect rate plans error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    return [];
+  }
+};
+
+/**
  * Change le plan tarifaire d'une carte SIM Truphone/1GLOBAL
  *
  * Documentation: 1Global IoT Portal API v2.2
@@ -489,11 +575,12 @@ const RATE_PLAN_CONFIG: TruphoneRatePlan[] = [
  * Cette fonction simule une recharge en changeant le plan tarifaire.
  *
  * Stratégie de sélection du plan:
- * 1. Tente de récupérer les plans tarifaires via l'API
+ * 1. Tente de récupérer les plans tarifaires via l'API /rate_plans
  * 2. Si l'API n'est pas accessible, utilise la configuration manuelle RATE_PLAN_CONFIG
- * 3. Filtre les plans qui ont un dataAllowance >= volumeMB
- * 4. Sélectionne le plan avec le dataAllowance le plus proche (optimal)
- * 5. Applique le changement de plan
+ * 3. Si RATE_PLAN_CONFIG est vide, tente de détecter les plans depuis les SIMs existantes
+ * 4. Filtre les plans qui ont un dataAllowance >= volumeMB
+ * 5. Sélectionne le plan avec le dataAllowance le plus proche (optimal)
+ * 6. Applique le changement de plan
  *
  * Configuration manuelle:
  * Si l'API /rate_plans n'est pas accessible (403), configurez manuellement vos plans
@@ -520,15 +607,22 @@ export const rechargeTruphoneSim = async (
     let ratePlans = await getTruphoneRatePlans();
 
     // 2. Si l'API ne retourne rien, utiliser la configuration manuelle
-    if (ratePlans.length === 0) {
+    if (ratePlans.length === 0 && RATE_PLAN_CONFIG.length > 0) {
       console.log("Truphone: Utilisation de la configuration manuelle RATE_PLAN_CONFIG");
       ratePlans = RATE_PLAN_CONFIG;
+    }
+
+    // 3. Si toujours vide, essayer de détecter automatiquement depuis les SIMs
+    if (ratePlans.length === 0) {
+      console.log("Truphone: Tentative de détection automatique des rate plans depuis les SIMs...");
+      ratePlans = await detectRatePlansFromSims();
     }
 
     if (ratePlans.length === 0) {
       throw new Error(
         "Aucun plan tarifaire disponible.\n\n" +
-        "L'API /rate_plans n'est pas accessible (403 Forbidden) et aucun plan n'est configuré manuellement.\n\n" +
+        "L'API /rate_plans n'est pas accessible (403 Forbidden), aucun plan n'est configuré manuellement, " +
+        "et la détection automatique n'a trouvé aucun plan dans vos SIMs.\n\n" +
         "Pour configurer manuellement vos plans:\n" +
         "1. Trouvez les IDs de vos plans dans le portail Truphone: https://iot.truphone.com/\n" +
         "2. Ajoutez-les dans la constante RATE_PLAN_CONFIG dans src/services/TruphoneService.ts\n\n" +
