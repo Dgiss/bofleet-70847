@@ -173,6 +173,38 @@ export const listThingsMobileSims = async (params: ThingsMobileListParams = {}):
   };
 };
 
+/**
+ * Récupère TOUTES les SIMs Things Mobile (toutes les pages)
+ * Optimisé pour le chargement initial
+ */
+export const listAllThingsMobileSims = async (): Promise<ThingsMobileSim[]> => {
+  console.log("⏱️ Things Mobile: Récupération de toutes les SIMs...");
+  const startTime = Date.now();
+
+  let allSims: ThingsMobileSim[] = [];
+  let page = 1;
+  const pageSize = 1000; // Taille de page augmentée
+  let hasMore = true;
+  const maxPages = 20; // Sécurité
+
+  while (hasMore && page <= maxPages) {
+    const pageStartTime = Date.now();
+    const result = await listThingsMobileSims({ page, pageSize });
+
+    const pageDuration = Date.now() - pageStartTime;
+    console.log(`⏱️ Things Mobile: Page ${page} - ${result.sims.length} SIM(s) en ${pageDuration}ms`);
+
+    allSims = allSims.concat(result.sims);
+    hasMore = result.hasMore;
+    page++;
+  }
+
+  const totalDuration = Date.now() - startTime;
+  console.log(`✅ Things Mobile: ${allSims.length} SIM(s) au total récupérées en ${totalDuration}ms (${page - 1} page(s))`);
+
+  return allSims;
+};
+
 export const getThingsMobileSimStatus = async (
   params: ThingsMobileStatusParams
 ): Promise<ThingsMobileSim | null> => {

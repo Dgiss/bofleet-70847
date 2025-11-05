@@ -375,16 +375,18 @@ export const listTruphoneSimsPaged = async (
 export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
   try {
     const headers = await getHeaders();
-    console.log("Truphone: Récupération de la liste des SIMs avec pagination...");
+    console.log("⏱️ Truphone: Récupération de la liste des SIMs avec pagination...");
+    const startTime = Date.now();
 
     let allSims: any[] = [];
     let page = 1;
-    const perPage = 500; // Maximum par page
+    const perPage = 2000; // Augmenté pour réduire le nombre de requêtes
     let hasMore = true;
+    let maxPages = 10; // Limite de sécurité (20000 SIMs max)
 
     // Pagination: récupérer toutes les pages
-    while (hasMore) {
-      console.log(`Truphone: Récupération page ${page}...`);
+    while (hasMore && page <= maxPages) {
+      const pageStartTime = Date.now();
 
       const response = await axios.get(`${BASE_URL}/v2.2/sims`, {
         headers,
@@ -401,7 +403,8 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
         break;
       }
 
-      console.log(`Truphone: Page ${page} - ${sims.length} SIM(s) récupérée(s)`);
+      const pageDuration = Date.now() - pageStartTime;
+      console.log(`⏱️ Truphone: Page ${page} - ${sims.length} SIM(s) en ${pageDuration}ms`);
       allSims = allSims.concat(sims);
 
       // Vérifier s'il y a plus de pages
@@ -411,15 +414,10 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
       } else {
         page++;
       }
-
-      // Sécurité: limiter à 20 pages max (10 000 SIMs)
-      if (page > 20) {
-        console.warn("⚠️ Truphone: Limite de 20 pages atteinte, arrêt de la pagination");
-        hasMore = false;
-      }
     }
 
-    console.log(`✅ Truphone: ${allSims.length} SIM(s) au total récupérées`);
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ Truphone: ${allSims.length} SIM(s) au total récupérées en ${totalDuration}ms (${page} page(s))`);
 
     return allSims.map((sim: any, index: number) => {
       // Extraire le statut en inspectant tous les champs possibles
