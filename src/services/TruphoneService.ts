@@ -17,6 +17,16 @@ export interface TruphoneSim {
   organizationName?: string; // Nom de l'organisation
 }
 
+export interface TruphoneSimWithUsage extends TruphoneSim {
+  dataUsage?: number; // en MB
+  dataLimit?: number; // en MB (depuis le rate plan)
+  percentageUsed?: number; // % de données utilisées
+  smsCount?: number;
+  callDuration?: number; // en minutes
+  needsRecharge?: boolean; // true si >80% de consommation
+  isCritical?: boolean; // true si >90% de consommation
+}
+
 export interface TruphoneUsage {
   simId: string;
   dataUsage: number; // en bytes
@@ -782,6 +792,125 @@ export const rechargeTruphoneSimByPlan = async (
     throw new Error(
       `Échec de la recharge Truphone pour ${iccid}: ${error.message}`
     );
+  }
+};
+
+/**
+ * Convertit bytes en MB
+ */
+const bytesToMB = (bytes: number): number => {
+  return Math.round((bytes / 1_000_000) * 100) / 100; // 2 décimales
+};
+
+/**
+ * 📊 Enrichit une SIM Truphone avec ses données de consommation et calcule les alertes
+ *
+ * @param sim - La SIM Truphone de base
+ * @param ratePlans - Liste des rate plans disponibles (pour trouver la limite de données)
+ * @returns SIM enrichie avec données de consommation et alertes
+ */
+export const enrichTruphoneSimWithUsage = async (
+  sim: TruphoneSim,
+  ratePlans: TruphoneRatePlan[]
+): Promise<TruphoneSimWithUsage> => {
+  try {
+    // Récupérer les données de consommation
+    const usage = await getTruphoneUsage(sim.iccid);
+
+    // Convertir les données en MB
+    const dataUsageMB = usage ? bytesToMB(usage.dataUsage) : 0;
+
+    // Trouver le rate plan correspondant pour obtenir la limite
+    const ratePlan = ratePlans.find((plan) => plan.id === sim.servicePack);
+    const dataLimit = ratePlan?.dataAllowance; // en MB
+
+    // Calculer le pourcentage utilisé
+    let percentageUsed = 0;
+    if (dataLimit && dataLimit > 0) {
+      percentageUsed = (dataUsageMB / dataLimit) * 100;
+    }
+
+    // Déterminer si la SIM nécessite une alerte
+    const needsRecharge = percentageUsed >= 80;
+    const isCritical = percentageUsed >= 90;
+
+    return {
+      ...sim,
+      dataUsage: dataUsageMB,
+      dataLimit,
+      percentageUsed,
+      smsCount: usage?.smsCount,
+      callDuration: usage?.callDuration,
+      needsRecharge,
+      isCritical,
+    };
+  } catch (error) {
+    console.error(`Erreur lors de l'enrichissement de la SIM ${sim.iccid}:`, error);
+    // Retourner la SIM sans enrichissement en cas d'erreur
+    return {
+      ...sim,
+      dataUsage: 0,
+      percentageUsed: 0,
+      needsRecharge: false,
+      isCritical: false,
+    };
+  }
+};
+
+/**
+ * 📊 Récupère toutes les SIMs Truphone enrichies avec leurs données de consommation
+ *
+ * Cette fonction récupère toutes les SIMs et les enrichit avec :
+ * - Données de consommation actuelles
+ * - Limites du plan
+ * - Pourcentage utilisé
+ * - Alertes (needsRecharge, isCritical)
+ *
+ * @returns Liste des SIMs enrichies
+ */
+export const listTruphoneSimsWithUsage = async (): Promise<TruphoneSimWithUsage[]> => {
+  try {
+    console.log("📊 Truphone: Récupération des SIMs avec données de consommation...");
+    const startTime = Date.now();
+
+    // Récupérer les SIMs et les rate plans en parallèle
+    const [sims, ratePlans] = await Promise.all([
+      listTruphoneSims(),
+      getAvailableTruphoneRatePlans(),
+    ]);
+
+    console.log(`📊 Truphone: ${sims.length} SIM(s) à enrichir, ${ratePlans.length} plan(s) disponible(s)`);
+
+    // Enrichir chaque SIM avec ses données de consommation
+    // Pour éviter de surcharger l'API, on peut limiter le nombre de requêtes simultanées
+    const enrichedSims: TruphoneSimWithUsage[] = [];
+    const batchSize = 10; // Traiter 10 SIMs à la fois
+
+    for (let i = 0; i < sims.length; i += batchSize) {
+      const batch = sims.slice(i, i + batchSize);
+      const enrichedBatch = await Promise.all(
+        batch.map((sim) => enrichTruphoneSimWithUsage(sim, ratePlans))
+      );
+      enrichedSims.push(...enrichedBatch);
+
+      console.log(`📊 Truphone: ${enrichedSims.length}/${sims.length} SIM(s) enrichies`);
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Truphone: ${enrichedSims.length} SIM(s) enrichies en ${duration}ms`);
+
+    // Compter les alertes
+    const critical = enrichedSims.filter((s) => s.isCritical).length;
+    const warning = enrichedSims.filter((s) => s.needsRecharge && !s.isCritical).length;
+
+    if (critical > 0 || warning > 0) {
+      console.log(`⚠️ Truphone: ${critical} SIM(s) critique(s), ${warning} SIM(s) à surveiller`);
+    }
+
+    return enrichedSims;
+  } catch (error: any) {
+    console.error("Erreur lors de la récupération des SIMs Truphone enrichies:", error);
+    throw error;
   }
 };
 

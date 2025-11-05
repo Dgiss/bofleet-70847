@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Building2, Car, BarChart, Download, Box, Building } from "lucide-react";
+import { Building2, Car, BarChart, Download, Box, Building, AlertCircle } from "lucide-react";
 
 export function AppSidebar() {
   const location = useLocation();
@@ -30,6 +30,11 @@ export function AppSidebar() {
       title: "Cartes SIM",
       icon: BarChart,
       path: "/sim-cards",
+    },
+    {
+      title: "Truphone - Détails & Alertes",
+      icon: AlertCircle,
+      path: "/truphone-details",
     },
     {
       title: "FotaWeb",
