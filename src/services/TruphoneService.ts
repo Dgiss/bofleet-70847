@@ -27,6 +27,16 @@ export interface TruphoneBalance {
   planDetails?: any;
 }
 
+export interface TruphoneRatePlan {
+  id: string;
+  name: string;
+  description?: string;
+  dataAllowance?: number; // en MB
+  validity?: number; // en jours
+  price?: number;
+  currency?: string;
+}
+
 const ensureCredentials = () => {
   const apiKey = import.meta.env.VITE_TRUPHONE_API_KEY;
   const username = import.meta.env.VITE_TRUPHONE_USERNAME;
@@ -331,6 +341,53 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
 };
 
 /**
+ * Récupère la liste des plans tarifaires (Rate Plans) disponibles
+ *
+ * Documentation: 1Global IoT Portal API v2.1
+ * Endpoint: GET /api/v2.1/rate_plans
+ *
+ * @returns Liste des plans tarifaires disponibles
+ * @throws Error en cas d'échec
+ */
+export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
+  try {
+    const headers = await getHeaders();
+    console.log("Truphone: Récupération des plans tarifaires...");
+
+    const response = await axios.get(`${BASE_URL}/v2.1/rate_plans`, {
+      headers,
+    });
+
+    console.log("Truphone: Réponse rate plans reçue", response.data);
+    const ratePlans = response.data.rate_plans ?? response.data.results ?? response.data ?? [];
+
+    if (!Array.isArray(ratePlans)) {
+      console.error("Truphone: La réponse rate plans n'est pas un tableau:", ratePlans);
+      return [];
+    }
+
+    console.log(`Truphone: ${ratePlans.length} plan(s) tarifaire(s) trouvé(s)`);
+
+    return ratePlans.map((plan: any) => ({
+      id: plan.id ?? plan.service_pack_id ?? "",
+      name: plan.name ?? plan.service_pack_name ?? "",
+      description: plan.description ?? undefined,
+      dataAllowance: plan.data_allowance ?? plan.dataAllowance ?? undefined,
+      validity: plan.validity_days ?? plan.validity ?? undefined,
+      price: plan.price ?? undefined,
+      currency: plan.currency ?? "EUR",
+    }));
+  } catch (error: any) {
+    console.error("Truphone get rate plans error:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    throw error;
+  }
+};
+
+/**
  * Change le plan tarifaire d'une carte SIM Truphone/1GLOBAL
  *
  * Documentation: 1Global IoT Portal API v2.2
@@ -400,48 +457,94 @@ export const changeTruphoneRatePlan = async (
  * "Recharge" une carte SIM Truphone/1GLOBAL
  *
  * NOTE: Truphone/1GLOBAL ne propose pas d'endpoint direct de recharge de données.
- * Cette fonction est un wrapper qui simule une recharge en changeant le plan tarifaire.
- * Pour une vraie recharge, vous devez :
- * 1. Créer des plans tarifaires prédéfinis dans votre compte Truphone
- * 2. Mapper les volumes de recharge aux IDs de plans
- * 3. Utiliser changeTruphoneRatePlan() avec le bon plan
+ * Cette fonction simule une recharge en changeant le plan tarifaire.
+ * Elle récupère automatiquement les plans disponibles et sélectionne celui
+ * qui correspond le mieux au volume demandé.
+ *
+ * Stratégie de sélection du plan:
+ * 1. Récupère tous les plans tarifaires disponibles
+ * 2. Filtre les plans qui ont un dataAllowance >= volumeMB
+ * 3. Sélectionne le plan avec le dataAllowance le plus proche (optimal)
+ * 4. Applique le changement de plan immédiatement
  *
  * Alternative : Configurez un "Auto Top-Up" dans le portail Truphone.
  * Documentation : https://docs.things.1global.com/docs/get-started/configure-auto-topup/
  *
  * @param iccid - ICCID de la carte SIM
- * @param volumeMB - Volume de données souhaité (utilisé pour déterminer le plan)
- * @returns true si la recharge réussit, false sinon
- * @throws Error car non implémenté sans mapping de plans
+ * @param volumeMB - Volume de données souhaité en MB
+ * @param nextBillingCycle - Si true, applique au prochain cycle. Si false (défaut), applique immédiatement.
+ * @returns true si la recharge réussit
+ * @throws Error si aucun plan correspondant n'est trouvé ou si la recharge échoue
  */
 export const rechargeTruphoneSim = async (
   iccid: string,
-  volumeMB: number
+  volumeMB: number,
+  nextBillingCycle: boolean = false
 ): Promise<boolean> => {
-  console.warn("⚠️ Truphone: Fonction de recharge non implémentée (pas d'endpoint direct de recharge)");
-  console.log(`Truphone: Recharge demandée pour ${iccid} - ${volumeMB} MB`);
+  try {
+    console.log(`Truphone: Recharge demandée pour ${iccid} - ${volumeMB} MB`);
 
-  // TODO: Implémenter le mapping volume -> rate plan ID
-  // Exemple d'implémentation possible:
-  /*
-  const ratePlanMap: Record<number, string> = {
-    100: "plan_id_100mb",
-    500: "plan_id_500mb",
-    1000: "plan_id_1gb",
-    5000: "plan_id_5gb",
-  };
+    // 1. Récupérer tous les plans tarifaires disponibles
+    const ratePlans = await getTruphoneRatePlans();
 
-  const ratePlanId = ratePlanMap[volumeMB];
-  if (!ratePlanId) {
-    throw new Error(`Aucun plan tarifaire configuré pour ${volumeMB} MB`);
+    if (ratePlans.length === 0) {
+      throw new Error(
+        "Aucun plan tarifaire disponible. Vérifiez votre configuration Truphone."
+      );
+    }
+
+    console.log(`Truphone: ${ratePlans.length} plan(s) disponible(s) pour la sélection`);
+
+    // 2. Filtrer les plans qui ont suffisamment de données
+    const suitablePlans = ratePlans.filter((plan) => {
+      const allowance = plan.dataAllowance ?? 0;
+      return allowance >= volumeMB;
+    });
+
+    if (suitablePlans.length === 0) {
+      // Si aucun plan n'a assez de données, prendre le plus grand disponible
+      console.warn(
+        `⚠️ Truphone: Aucun plan avec ${volumeMB} MB trouvé, sélection du plan le plus grand`
+      );
+      const largestPlan = ratePlans.reduce((max, plan) => {
+        const maxAllowance = max.dataAllowance ?? 0;
+        const planAllowance = plan.dataAllowance ?? 0;
+        return planAllowance > maxAllowance ? plan : max;
+      });
+
+      if (!largestPlan.id) {
+        throw new Error("Impossible de trouver un plan tarifaire valide");
+      }
+
+      console.log(
+        `Truphone: Plan sélectionné: ${largestPlan.name} (${largestPlan.dataAllowance} MB)`
+      );
+
+      return await changeTruphoneRatePlan(iccid, largestPlan.id, nextBillingCycle);
+    }
+
+    // 3. Sélectionner le plan avec le dataAllowance le plus proche (optimal)
+    const optimalPlan = suitablePlans.reduce((best, plan) => {
+      const bestAllowance = best.dataAllowance ?? Infinity;
+      const planAllowance = plan.dataAllowance ?? Infinity;
+      return planAllowance < bestAllowance ? plan : best;
+    });
+
+    console.log(
+      `Truphone: Plan optimal sélectionné: ${optimalPlan.name} (${optimalPlan.dataAllowance} MB) pour une demande de ${volumeMB} MB`
+    );
+
+    // 4. Appliquer le changement de plan
+    return await changeTruphoneRatePlan(iccid, optimalPlan.id, nextBillingCycle);
+  } catch (error: any) {
+    console.error("❌ Truphone recharge error:", {
+      message: error.message,
+      iccid,
+      volumeMB,
+    });
+
+    throw new Error(
+      `Échec de la recharge Truphone pour ${iccid}: ${error.message}`
+    );
   }
-
-  return await changeTruphoneRatePlan(iccid, ratePlanId, true);
-  */
-
-  throw new Error(
-    "La recharge Truphone nécessite un mapping de plans tarifaires. " +
-    "Configurez les plans dans votre compte Truphone puis implémentez le mapping dans rechargeTruphoneSim(). " +
-    "Ou utilisez la fonction Auto Top-Up du portail : https://docs.things.1global.com/docs/get-started/configure-auto-topup/"
-  );
 };
