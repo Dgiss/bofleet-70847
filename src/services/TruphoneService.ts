@@ -290,36 +290,65 @@ export const getTruphoneBalance = async (
 export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
   try {
     const headers = await getHeaders();
-    console.log("Truphone: Récupération de la liste des SIMs...");
-    const response = await axios.get(`${BASE_URL}/v2.2/sims`, {
-      headers,
-    });
+    console.log("Truphone: Récupération de la liste des SIMs avec pagination...");
 
-    console.log("Truphone: Réponse reçue", response.data);
-    const sims = response.data.sims ?? response.data.results ?? response.data ?? [];
+    let allSims: any[] = [];
+    let page = 1;
+    const perPage = 500; // Maximum par page
+    let hasMore = true;
 
-    if (!Array.isArray(sims)) {
-      console.error("Truphone: La réponse n'est pas un tableau:", sims);
-      return [];
+    // Pagination: récupérer toutes les pages
+    while (hasMore) {
+      console.log(`Truphone: Récupération page ${page}...`);
+
+      const response = await axios.get(`${BASE_URL}/v2.2/sims`, {
+        headers,
+        params: {
+          page,
+          per_page: perPage,
+        },
+      });
+
+      const sims = response.data.sims ?? response.data.results ?? response.data ?? [];
+
+      if (!Array.isArray(sims)) {
+        console.error("Truphone: La réponse n'est pas un tableau:", sims);
+        break;
+      }
+
+      console.log(`Truphone: Page ${page} - ${sims.length} SIM(s) récupérée(s)`);
+      allSims = allSims.concat(sims);
+
+      // Vérifier s'il y a plus de pages
+      // Si on reçoit moins que perPage, c'est la dernière page
+      if (sims.length < perPage) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+
+      // Sécurité: limiter à 20 pages max (10 000 SIMs)
+      if (page > 20) {
+        console.warn("⚠️ Truphone: Limite de 20 pages atteinte, arrêt de la pagination");
+        hasMore = false;
+      }
     }
 
-    console.log(`Truphone: ${sims.length} SIM(s) trouvée(s)`);
+    console.log(`✅ Truphone: ${allSims.length} SIM(s) au total récupérées`);
 
-    return sims.map((sim: any, index: number) => {
+    return allSims.map((sim: any, index: number) => {
       // Extraire le statut en inspectant tous les champs possibles
       const rawStatus = extractSimStatus(sim);
 
-      if (!rawStatus) {
+      if (!rawStatus && index === 0) {
         console.warn(`⚠️ Truphone SIM #${index + 1} (${sim.iccid}): Aucun champ de statut trouvé`);
         // Logger un exemple de la première SIM pour debugging
-        if (index === 0) {
-          console.log("📋 Structure de la première SIM pour analyse:", {
-            keys: Object.keys(sim),
-            subscription: sim.subscription ? Object.keys(sim.subscription) : null,
-            dates: sim.dates,
-            attributes: sim.attributes,
-          });
-        }
+        console.log("📋 Structure de la première SIM pour analyse:", {
+          keys: Object.keys(sim),
+          subscription: sim.subscription ? Object.keys(sim.subscription) : null,
+          dates: sim.dates,
+          attributes: sim.attributes,
+        });
       }
 
       return {
@@ -357,8 +386,9 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
     const headers = await getHeaders();
     console.log("Truphone: Récupération des plans tarifaires via /api/rate_plan/...");
 
-    // L'endpoint correct est /rate_plan (singulier), pas /rate_plans
-    const response = await axios.get(`${BASE_URL}/rate_plan/`, {
+    // L'endpoint /rate_plan/ est à la racine /api/, pas sous /api/v2.x/
+    // On doit utiliser /api/truphone/rate_plan/ au lieu de /api/truphone/api/rate_plan/
+    const response = await axios.get("/api/truphone/rate_plan/", {
       headers,
       params: {
         per_page: 500, // Récupérer jusqu'à 500 plans
@@ -395,9 +425,9 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
       supportsTestMode: plan.supportsTestMode ?? false,
     }));
   } catch (error: any) {
-    // Si l'endpoint n'est pas accessible (403), retourner une liste vide
-    if (error.response?.status === 403) {
-      console.warn("⚠️ Truphone: L'endpoint /rate_plan n'est pas accessible (403 Forbidden)");
+    // Si l'endpoint n'est pas accessible (403 ou 404), retourner une liste vide
+    if (error.response?.status === 403 || error.response?.status === 404) {
+      console.warn(`⚠️ Truphone: L'endpoint /rate_plan n'est pas accessible (${error.response.status})`);
       console.warn("⚠️ Truphone: Cet endpoint peut nécessiter des permissions spéciales ou ne pas être disponible pour votre compte");
       return [];
     }
