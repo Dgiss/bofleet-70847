@@ -23,6 +23,12 @@ interface UnifiedSim {
   tag?: string;
   dataUsage?: string;
   lastConnection?: string;
+  label?: string;
+  description?: string;
+  imei?: string;
+  servicePack?: string;
+  simType?: string;
+  organizationName?: string;
 }
 
 interface ProviderStatus {
@@ -196,6 +202,12 @@ export function MultiProviderSimTab() {
     msisdn: sim.msisdn || "—",
     iccid: sim.iccid || "—",
     status: sim.status || "unknown",
+    label: sim.label,
+    description: sim.description,
+    imei: sim.imei,
+    servicePack: sim.servicePack,
+    simType: sim.simType,
+    organizationName: sim.organizationName,
   }));
 
   const allSims = [...otherProvidersSims, ...truphoneUnifiedSims];
@@ -241,6 +253,10 @@ export function MultiProviderSimTab() {
     { id: "lastConnection", label: "Dernière connexion", sortable: true },
     { id: "name", label: "Nom", sortable: true },
     { id: "tag", label: "Tag", sortable: true },
+    { id: "label", label: "Libellé", sortable: true },
+    { id: "imei", label: "IMEI", sortable: true },
+    { id: "servicePack", label: "Plan tarifaire", sortable: true },
+    { id: "organizationName", label: "Organisation", sortable: true },
     {
       id: "actions",
       label: "Actions",

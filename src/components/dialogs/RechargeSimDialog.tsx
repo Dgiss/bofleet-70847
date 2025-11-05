@@ -115,7 +115,25 @@ export function RechargeSimDialog({
 
   if (!sim) return null;
 
-  const volumePresets = [100, 500, 1000, 5000];
+  // Plans tarifaires spécifiques à chaque opérateur
+  const getVolumePresets = () => {
+    switch (sim.provider) {
+      case "Things Mobile":
+        // Things Mobile a un max de 1000 MB par recharge
+        return [100, 500, 1000];
+
+      case "Truphone":
+        // Truphone utilise des changements de plans, volumes plus importants
+        return [500, 1000, 2000, 5000];
+
+      case "Phenix":
+      default:
+        // Phenix et autres - plans standards
+        return [100, 500, 1000, 5000];
+    }
+  };
+
+  const volumePresets = getVolumePresets();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,8 +178,8 @@ export function RechargeSimDialog({
 
           {/* Presets */}
           <div className="space-y-2">
-            <Label>Montants prédéfinis</Label>
-            <div className="grid grid-cols-4 gap-2">
+            <Label>Montants prédéfinis - {sim.provider}</Label>
+            <div className={`grid ${volumePresets.length === 3 ? 'grid-cols-3' : 'grid-cols-4'} gap-2`}>
               {volumePresets.map((preset) => (
                 <Button
                   key={preset}

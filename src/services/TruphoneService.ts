@@ -9,6 +9,12 @@ export interface TruphoneSim {
   msisdn?: string;
   status: string; // active, inactive, suspended, etc.
   imsi?: string;
+  label?: string; // Nom/label de la SIM
+  description?: string; // Description
+  imei?: string; // IMEI du device associé
+  servicePack?: string; // Nom du service pack/rate plan
+  simType?: string; // Type de SIM (FORM_FACTOR, etc.)
+  organizationName?: string; // Nom de l'organisation
 }
 
 export interface TruphoneUsage {
@@ -322,12 +328,24 @@ export const listTruphoneSimsPaged = async (
     const mappedSims = sims.map((sim: any) => {
       const rawStatus = extractSimStatus(sim);
 
+      // Extraire le service pack depuis différents emplacements
+      const servicePack = sim.subscription?.servicePackId ??
+                          sim.subscription?.servicePack?.name ??
+                          sim.servicePack ??
+                          undefined;
+
       return {
         simId: sim.id ?? sim.simId ?? sim.sim_id ?? sim.iccid ?? "",
         iccid: sim.iccid ?? "",
         msisdn: sim.msisdn ?? sim.primaryMsisdn ?? undefined,
         status: normalizeTruphoneStatus(rawStatus),
         imsi: sim.imsi ?? sim.primaryImsi ?? undefined,
+        label: sim.label ?? undefined,
+        description: sim.description ?? undefined,
+        imei: sim.imei ?? undefined,
+        servicePack: servicePack,
+        simType: sim.simType ?? undefined,
+        organizationName: sim.organization?.name ?? sim.organizationName ?? undefined,
       };
     });
 
