@@ -62,16 +62,7 @@ export function RechargeSimDialog({
 
         case "Things Mobile":
           console.log(`🔄 Recharge Things Mobile: ${sim.msisdn} - ${volumeNum} MB`);
-          try {
-            success = await rechargeThingsMobileSim(sim.msisdn, volumeNum);
-          } catch (apiError: any) {
-            // L'API n'est pas disponible, on affiche un message informatif
-            setError(
-              "⚠️ L'API de recharge Things Mobile n'est pas disponible publiquement. " +
-              "Veuillez effectuer la recharge manuellement via le portail IoT : https://www.thingsmobile.com"
-            );
-            throw apiError;
-          }
+          success = await rechargeThingsMobileSim(sim.msisdn, volumeNum, sim.iccid);
           break;
 
         case "Truphone":
@@ -204,8 +195,8 @@ export function RechargeSimDialog({
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                <strong>Things Mobile:</strong> L'API de recharge n'est pas documentée publiquement.
-                Contactez Things Mobile pour obtenir l'accès à l'endpoint de recharge ou utilisez le portail IoT.
+                <strong>Things Mobile:</strong> Recharge réelle via l'API rechargeSim.
+                Montant maximum: 1000 MB par recharge. Le montant sera déduit de votre crédit partagé.
               </AlertDescription>
             </Alert>
           )}
