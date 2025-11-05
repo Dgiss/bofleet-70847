@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
-import { listTruphoneSims } from "@/services/TruphoneService";
+import { listTruphoneSims, enrichTruphoneSimsWithUsage, getAvailableTruphoneRatePlans } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
@@ -37,6 +37,13 @@ interface UnifiedSim {
   servicePack?: string;
   simType?: string;
   organizationName?: string;
+  // Données d'utilisation détaillées (Truphone)
+  dataUsageBytes?: number;
+  dataAllowanceBytes?: number;
+  dataUsagePercent?: number;
+  smsCount?: number;
+  callDurationMinutes?: number;
+  isLowData?: boolean; // true si l'utilisation dépasse le seuil d'alerte
 }
 
 interface ProviderStatus {
@@ -73,6 +80,34 @@ const formatBytes = (bytes?: number) => {
   if (!bytes) return "—";
   const mb = bytes / 1_000_000;
   return `${mb.toFixed(2)} MB`;
+};
+
+// Seuils d'alerte pour l'utilisation des données
+const DATA_USAGE_THRESHOLDS = {
+  WARNING: 70, // 70% = Avertissement (jaune)
+  CRITICAL: 85, // 85% = Critique (orange)
+  DEPLETED: 95, // 95% = Presque épuisé (rouge)
+};
+
+const getDataUsageBadgeVariant = (usagePercent?: number) => {
+  if (!usagePercent) return "secondary";
+  if (usagePercent >= DATA_USAGE_THRESHOLDS.DEPLETED) return "destructive"; // Rouge
+  if (usagePercent >= DATA_USAGE_THRESHOLDS.CRITICAL) return "default"; // Orange/Bleu
+  if (usagePercent >= DATA_USAGE_THRESHOLDS.WARNING) return "outline"; // Jaune
+  return "secondary"; // Vert/Gris
+};
+
+const formatDataUsageWithPercent = (usageBytes?: number, allowanceBytes?: number, usagePercent?: number) => {
+  if (!usageBytes) return "—";
+
+  const usageMB = (usageBytes / 1_000_000).toFixed(2);
+
+  if (allowanceBytes && usagePercent !== undefined) {
+    const allowanceMB = (allowanceBytes / 1_000_000).toFixed(0);
+    return `${usageMB} / ${allowanceMB} MB (${usagePercent.toFixed(1)}%)`;
+  }
+
+  return `${usageMB} MB`;
 };
 
 const statusToDisplayText = (status: string): string => {
@@ -148,23 +183,47 @@ export function MultiProviderSimTab() {
         })),
       })),
 
-      // Truphone (toutes les pages)
-      listTruphoneSims().then((truphoneSims) => ({
-        provider: "Truphone" as const,
-        sims: truphoneSims.map((sim) => ({
-          id: `truphone-${sim.iccid || sim.simId}`,
-          provider: "Truphone" as const,
-          msisdn: sim.msisdn || "—",
-          iccid: sim.iccid || "—",
-          status: sim.status || "unknown",
-          label: sim.label,
-          description: sim.description,
-          imei: sim.imei,
-          servicePack: sim.servicePack,
-          simType: sim.simType,
-          organizationName: sim.organizationName,
-        })),
-      })),
+      // Truphone (toutes les pages) avec enrichissement des données d'utilisation
+      (async () => {
+        try {
+          const truphoneSims = await listTruphoneSims();
+          console.log(`📊 Truphone: ${truphoneSims.length} SIM(s) récupérées, enrichissement en cours...`);
+
+          // Récupérer les rate plans pour calculer les pourcentages d'utilisation
+          const ratePlans = await getAvailableTruphoneRatePlans();
+          console.log(`📋 Truphone: ${ratePlans.length} rate plan(s) disponible(s)`);
+
+          // Enrichir les SIMs avec leurs données d'utilisation (par batch de 3)
+          const enrichedSims = await enrichTruphoneSimsWithUsage(truphoneSims, ratePlans, 3);
+
+          return {
+            provider: "Truphone" as const,
+            sims: enrichedSims.map((sim) => ({
+              id: `truphone-${sim.iccid || sim.simId}`,
+              provider: "Truphone" as const,
+              msisdn: sim.msisdn || "—",
+              iccid: sim.iccid || "—",
+              status: sim.status || "unknown",
+              label: sim.label,
+              description: sim.description,
+              imei: sim.imei,
+              servicePack: sim.servicePack,
+              simType: sim.simType,
+              organizationName: sim.organizationName,
+              // Nouvelles données d'utilisation
+              dataUsageBytes: sim.dataUsageBytes,
+              dataAllowanceBytes: sim.dataAllowanceBytes,
+              dataUsagePercent: sim.dataUsagePercent,
+              smsCount: sim.smsCount,
+              callDurationMinutes: sim.callDurationMinutes,
+              isLowData: sim.dataUsagePercent !== undefined && sim.dataUsagePercent >= DATA_USAGE_THRESHOLDS.WARNING,
+            })),
+          };
+        } catch (error) {
+          console.error("Erreur lors du chargement Truphone:", error);
+          throw error;
+        }
+      })(),
     ]);
 
     // Traiter les résultats
@@ -242,7 +301,72 @@ export function MultiProviderSimTab() {
         </Badge>
       ),
     },
-    { id: "dataUsage", label: "Data mensuelle", sortable: true },
+    {
+      id: "dataUsage",
+      label: "Data mensuelle (Things Mobile)",
+      sortable: true,
+      renderCell: (value: string, row: any) => {
+        // Pour Things Mobile, afficher la data mensuelle simple
+        if (row.provider === "Things Mobile") {
+          return value || "—";
+        }
+        return "—";
+      }
+    },
+    {
+      id: "dataUsageDetailed",
+      label: "Utilisation data (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        // Pour Truphone, afficher l'utilisation détaillée avec pourcentage
+        if (row.provider === "Truphone" && row.dataUsageBytes) {
+          const formatted = formatDataUsageWithPercent(
+            row.dataUsageBytes,
+            row.dataAllowanceBytes,
+            row.dataUsagePercent
+          );
+
+          // Ajouter un badge coloré si on a un pourcentage
+          if (row.dataUsagePercent !== undefined) {
+            return (
+              <div className="flex items-center gap-2">
+                <span>{formatted}</span>
+                <Badge variant={getDataUsageBadgeVariant(row.dataUsagePercent)}>
+                  {row.dataUsagePercent >= DATA_USAGE_THRESHOLDS.DEPLETED ? "🚨 Critique" :
+                   row.dataUsagePercent >= DATA_USAGE_THRESHOLDS.CRITICAL ? "⚠️ Élevé" :
+                   row.dataUsagePercent >= DATA_USAGE_THRESHOLDS.WARNING ? "⚡ Attention" :
+                   "✅ OK"}
+                </Badge>
+              </div>
+            );
+          }
+          return formatted;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "smsCount",
+      label: "SMS (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.smsCount !== undefined) {
+          return row.smsCount.toString();
+        }
+        return "—";
+      }
+    },
+    {
+      id: "callDurationMinutes",
+      label: "Appels (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.callDurationMinutes !== undefined) {
+          return `${row.callDurationMinutes} min`;
+        }
+        return "—";
+      }
+    },
     { id: "lastConnection", label: "Dernière connexion", sortable: true },
     { id: "name", label: "Nom", sortable: true },
     { id: "tag", label: "Tag", sortable: true },
@@ -275,8 +399,72 @@ export function MultiProviderSimTab() {
     truphone: allSims.filter((s) => s.provider === "Truphone").length,
   };
 
+  // Calculer les SIMs avec un niveau de data faible
+  const lowDataSims = allSims.filter(sim => sim.isLowData && sim.dataUsagePercent !== undefined);
+  const criticalSims = lowDataSims.filter(sim => sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.DEPLETED);
+  const warningSims = lowDataSims.filter(sim =>
+    sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.WARNING &&
+    sim.dataUsagePercent! < DATA_USAGE_THRESHOLDS.DEPLETED
+  );
+
   return (
     <div className="space-y-6">
+      {/* Alerte pour SIMs presque épuisées */}
+      {lowDataSims.length > 0 && (
+        <Alert
+          variant={criticalSims.length > 0 ? "destructive" : "default"}
+          className={criticalSims.length === 0 ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950" : ""}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>
+            {criticalSims.length > 0 ? "⚠️ SIMs en situation critique" : "💡 Reminder: SIMs nécessitant une attention"}
+          </AlertTitle>
+          <AlertDescription>
+            <div className="space-y-2">
+              {criticalSims.length > 0 && (
+                <div>
+                  <strong className="text-red-600 dark:text-red-400">
+                    🚨 {criticalSims.length} SIM(s) presque épuisée(s) (≥ {DATA_USAGE_THRESHOLDS.DEPLETED}%)
+                  </strong>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    {criticalSims.slice(0, 5).map(sim => (
+                      <li key={sim.id} className="text-sm">
+                        <strong>{sim.iccid}</strong> - {sim.dataUsagePercent?.toFixed(1)}% utilisé
+                        {sim.servicePack && ` (${sim.servicePack})`}
+                      </li>
+                    ))}
+                    {criticalSims.length > 5 && (
+                      <li className="text-sm italic">... et {criticalSims.length - 5} autre(s)</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              {warningSims.length > 0 && (
+                <div className={criticalSims.length > 0 ? "mt-3" : ""}>
+                  <strong className={criticalSims.length > 0 ? "text-yellow-600 dark:text-yellow-400" : ""}>
+                    ⚡ {warningSims.length} SIM(s) approchant la limite (≥ {DATA_USAGE_THRESHOLDS.WARNING}%)
+                  </strong>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    {warningSims.slice(0, 3).map(sim => (
+                      <li key={sim.id} className="text-sm">
+                        <strong>{sim.iccid}</strong> - {sim.dataUsagePercent?.toFixed(1)}% utilisé
+                        {sim.servicePack && ` (${sim.servicePack})`}
+                      </li>
+                    ))}
+                    {warningSims.length > 3 && (
+                      <li className="text-sm italic">... et {warningSims.length - 3} autre(s)</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+              <p className="text-sm mt-2 italic">
+                💡 Conseil: Rechargez ces SIMs avant qu'elles n'atteignent 100% pour éviter les interruptions de service.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Toutes les Cartes SIM (3 Opérateurs)</CardTitle>
@@ -454,7 +642,7 @@ export function MultiProviderSimTab() {
           </Card>
 
           {/* Statistics Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="border-l-4 border-l-blue-500">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">Total SIMs</p>
@@ -477,6 +665,20 @@ export function MultiProviderSimTab() {
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">Truphone</p>
                 <p className="text-2xl font-semibold">{stats.truphone}</p>
+              </CardContent>
+            </Card>
+            <Card className={`border-l-4 ${criticalSims.length > 0 ? 'border-l-red-500 bg-red-50 dark:bg-red-950' : lowDataSims.length > 0 ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950' : 'border-l-gray-500'}`}>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  {criticalSims.length > 0 ? <AlertTriangle className="h-3 w-3 text-red-500" /> : lowDataSims.length > 0 ? <AlertTriangle className="h-3 w-3 text-yellow-500" /> : null}
+                  SIMs à surveiller
+                </p>
+                <p className={`text-2xl font-semibold ${criticalSims.length > 0 ? 'text-red-600' : lowDataSims.length > 0 ? 'text-yellow-600' : ''}`}>
+                  {lowDataSims.length}
+                </p>
+                {criticalSims.length > 0 && (
+                  <p className="text-xs text-red-600 mt-1">Dont {criticalSims.length} critique(s)</p>
+                )}
               </CardContent>
             </Card>
           </div>

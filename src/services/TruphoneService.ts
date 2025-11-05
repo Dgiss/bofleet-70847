@@ -15,6 +15,13 @@ export interface TruphoneSim {
   servicePack?: string; // Nom du service pack/rate plan
   simType?: string; // Type de SIM (FORM_FACTOR, etc.)
   organizationName?: string; // Nom de l'organisation
+  // Données d'utilisation (optionnelles, chargées séparément)
+  dataUsageBytes?: number; // Utilisation actuelle en bytes
+  dataAllowanceBytes?: number; // Quota autorisé en bytes
+  dataUsagePercent?: number; // Pourcentage d'utilisation (0-100)
+  smsCount?: number; // Nombre de SMS envoyés
+  callDurationMinutes?: number; // Durée d'appels en minutes
+  lastUpdated?: string; // Date de dernière mise à jour des données
 }
 
 export interface TruphoneUsage {
@@ -451,6 +458,101 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
     });
     throw error;
   }
+};
+
+/**
+ * Enrichit une SIM Truphone avec ses données d'utilisation
+ *
+ * @param sim - La SIM à enrichir
+ * @param dataAllowanceMB - Quota de données autorisé en MB (optionnel, peut être déduit du rate plan)
+ * @returns La SIM enrichie avec les données d'utilisation
+ */
+export const enrichTruphoneSimWithUsage = async (
+  sim: TruphoneSim,
+  dataAllowanceMB?: number
+): Promise<TruphoneSim> => {
+  try {
+    // Récupérer les données d'utilisation pour cette SIM
+    const usage = await getTruphoneUsage(sim.iccid);
+
+    if (!usage) {
+      console.warn(`Impossible de récupérer les données d'utilisation pour ${sim.iccid}`);
+      return sim;
+    }
+
+    // Si on n'a pas le quota, on ne peut pas calculer le pourcentage
+    const dataAllowanceBytes = dataAllowanceMB ? dataAllowanceMB * 1_000_000 : undefined;
+
+    const enrichedSim: TruphoneSim = {
+      ...sim,
+      dataUsageBytes: usage.dataUsage,
+      dataAllowanceBytes,
+      dataUsagePercent: dataAllowanceBytes
+        ? Math.min(100, (usage.dataUsage / dataAllowanceBytes) * 100)
+        : undefined,
+      smsCount: usage.smsCount,
+      callDurationMinutes: usage.callDuration,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    return enrichedSim;
+  } catch (error) {
+    console.error(`Erreur lors de l'enrichissement de la SIM ${sim.iccid}:`, error);
+    return sim;
+  }
+};
+
+/**
+ * Enrichit une liste de SIMs avec leurs données d'utilisation
+ *
+ * ATTENTION: Cette fonction fait un appel API par SIM et peut être lente
+ * Utilisez avec précaution pour de grandes listes
+ *
+ * @param sims - Liste des SIMs à enrichir
+ * @param ratePlans - Liste des rate plans pour déduire le quota de chaque SIM (optionnel)
+ * @param batchSize - Nombre de SIMs à traiter en parallèle (défaut: 5)
+ * @returns Liste des SIMs enrichies
+ */
+export const enrichTruphoneSimsWithUsage = async (
+  sims: TruphoneSim[],
+  ratePlans?: TruphoneRatePlan[],
+  batchSize: number = 5
+): Promise<TruphoneSim[]> => {
+  console.log(`Enrichissement de ${sims.length} SIM(s) Truphone avec leurs données d'utilisation...`);
+  const startTime = Date.now();
+
+  const enrichedSims: TruphoneSim[] = [];
+
+  // Traiter les SIMs par batch pour éviter de surcharger l'API
+  for (let i = 0; i < sims.length; i += batchSize) {
+    const batch = sims.slice(i, i + batchSize);
+
+    const batchPromises = batch.map(async (sim) => {
+      // Essayer de trouver le rate plan correspondant pour cette SIM
+      const ratePlan = ratePlans?.find(plan => plan.id === sim.servicePack);
+      const dataAllowanceMB = ratePlan?.dataAllowance;
+
+      return await enrichTruphoneSimWithUsage(sim, dataAllowanceMB);
+    });
+
+    const batchResults = await Promise.allSettled(batchPromises);
+
+    batchResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        enrichedSims.push(result.value);
+      } else {
+        console.error(`Erreur pour la SIM ${batch[index].iccid}:`, result.reason);
+        enrichedSims.push(batch[index]); // Garder la SIM non enrichie
+      }
+    });
+
+    console.log(`Batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(sims.length / batchSize)} traité`);
+  }
+
+  const duration = Date.now() - startTime;
+  console.log(`✅ ${enrichedSims.length} SIM(s) enrichies en ${duration}ms`);
+
+  return enrichedSims;
 };
 
 /**
