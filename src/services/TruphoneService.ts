@@ -98,6 +98,58 @@ const getHeaders = async () => {
 };
 
 /**
+ * Extrait le statut d'une SIM en inspectant tous les champs possibles
+ * y compris les objets imbriqués
+ */
+const extractSimStatus = (sim: any): string | undefined => {
+  // Essayer les champs directs
+  let status = sim.status ??
+               sim.state ??
+               sim.sim_status ??
+               sim.simStatus ??
+               sim.subscription_status ??
+               sim.subscriptionStatus ??
+               sim.connectivity_status ??
+               sim.connectivityStatus;
+
+  if (status) return status;
+
+  // Essayer dans l'objet subscription
+  if (sim.subscription) {
+    status = sim.subscription.status ??
+             sim.subscription.state ??
+             sim.subscription.subscription_status ??
+             sim.subscription.subscriptionStatus ??
+             sim.subscription.connectivity_status ??
+             sim.subscription.connectivityStatus;
+
+    if (status) return status;
+  }
+
+  // Essayer dans l'objet dates (peut contenir des infos d'activation/désactivation)
+  if (sim.dates) {
+    // Si la SIM a une date d'activation mais pas de date de désactivation, elle est probablement active
+    if (sim.dates.activated && !sim.dates.deactivated && !sim.dates.suspended) {
+      return "ACTIVATED";
+    }
+    if (sim.dates.deactivated) {
+      return "DEACTIVATED";
+    }
+    if (sim.dates.suspended) {
+      return "SUSPENDED";
+    }
+  }
+
+  // Essayer dans l'objet attributes
+  if (sim.attributes && typeof sim.attributes === 'object') {
+    status = sim.attributes.status ?? sim.attributes.state;
+    if (status) return status;
+  }
+
+  return undefined;
+};
+
+/**
  * Normalise le statut Truphone/1Global vers un format standard
  *
  * Statuts possibles de l'API 1Global:
@@ -145,26 +197,25 @@ export const getTruphoneSimStatus = async (iccid: string): Promise<TruphoneSim |
 
     const data = response.data;
 
-    // Détection du champ de statut - essayer plusieurs variantes
-    const rawStatus = data.status ??
-                     data.state ??
-                     data.sim_status ??
-                     data.simStatus ??
-                     data.subscription_status ??
-                     data.subscriptionStatus ??
-                     data.connectivity_status ??
-                     data.connectivityStatus;
+    // Utiliser la même fonction d'extraction que pour la liste
+    const rawStatus = extractSimStatus(data);
 
     if (!rawStatus) {
-      console.warn(`⚠️ Truphone SIM ${iccid}: Aucun champ de statut trouvé dans:`, Object.keys(data));
+      console.warn(`⚠️ Truphone SIM ${iccid}: Aucun champ de statut trouvé`);
+      console.log("📋 Structure de la SIM pour analyse:", {
+        keys: Object.keys(data),
+        subscription: data.subscription ? Object.keys(data.subscription) : null,
+        dates: data.dates,
+        attributes: data.attributes,
+      });
     }
 
     return {
       simId: data.id ?? data.simId ?? data.sim_id ?? iccid,
       iccid: data.iccid ?? iccid,
-      msisdn: data.msisdn ?? undefined,
+      msisdn: data.msisdn ?? data.primaryMsisdn ?? undefined,
       status: normalizeTruphoneStatus(rawStatus),
-      imsi: data.imsi ?? undefined,
+      imsi: data.imsi ?? data.primaryImsi ?? undefined,
     };
   } catch (error) {
     console.error("Truphone get SIM status error:", error);
@@ -244,26 +295,28 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
     console.log(`Truphone: ${sims.length} SIM(s) trouvée(s)`);
 
     return sims.map((sim: any, index: number) => {
-      // Détection du champ de statut - essayer plusieurs variantes
-      const rawStatus = sim.status ??
-                       sim.state ??
-                       sim.sim_status ??
-                       sim.simStatus ??
-                       sim.subscription_status ??
-                       sim.subscriptionStatus ??
-                       sim.connectivity_status ??
-                       sim.connectivityStatus;
+      // Extraire le statut en inspectant tous les champs possibles
+      const rawStatus = extractSimStatus(sim);
 
       if (!rawStatus) {
-        console.warn(`⚠️ Truphone SIM #${index + 1} (${sim.iccid}): Aucun champ de statut trouvé dans:`, Object.keys(sim));
+        console.warn(`⚠️ Truphone SIM #${index + 1} (${sim.iccid}): Aucun champ de statut trouvé`);
+        // Logger un exemple de la première SIM pour debugging
+        if (index === 0) {
+          console.log("📋 Structure de la première SIM pour analyse:", {
+            keys: Object.keys(sim),
+            subscription: sim.subscription ? Object.keys(sim.subscription) : null,
+            dates: sim.dates,
+            attributes: sim.attributes,
+          });
+        }
       }
 
       return {
         simId: sim.id ?? sim.simId ?? sim.sim_id ?? sim.iccid ?? "",
         iccid: sim.iccid ?? "",
-        msisdn: sim.msisdn ?? undefined,
+        msisdn: sim.msisdn ?? sim.primaryMsisdn ?? undefined,
         status: normalizeTruphoneStatus(rawStatus),
-        imsi: sim.imsi ?? undefined,
+        imsi: sim.imsi ?? sim.primaryImsi ?? undefined,
       };
     });
   } catch (error: any) {
