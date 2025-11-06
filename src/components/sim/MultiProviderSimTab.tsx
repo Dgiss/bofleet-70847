@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
-import { listTruphoneSims, enrichTruphoneSimsWithUsage, getAvailableTruphoneRatePlans } from "@/services/TruphoneService";
+import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
@@ -153,19 +153,26 @@ export function MultiProviderSimTab() {
   const enrichmentDoneRef = useRef(false);
   const lastDataUpdateRef = useRef(0);
 
-  const fetchAllSims = async (): Promise<UnifiedSim[]> => {
-    const allSims: UnifiedSim[] = [];
-    const newStatuses: ProviderStatus[] = [];
+  // Charger les SIMs progressivement (un opérateur après l'autre)
+  const [allSims, setAllSims] = useState<UnifiedSim[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-    console.log("🔄 Chargement de tous les opérateurs en parallèle...");
+  const loadSimsProgressively = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setAllSims([]); // Réinitialiser
+
+    const newStatuses: ProviderStatus[] = [];
+    console.log("🔄 Chargement progressif des opérateurs (un par un)...");
     const startTime = Date.now();
 
-    // Charger tous les opérateurs EN PARALLÈLE avec Promise.allSettled
-    const results = await Promise.allSettled([
-      // Things Mobile (toutes les pages)
-      listAllThingsMobileSims().then((tmSims) => ({
-        provider: "Things Mobile" as const,
-        sims: tmSims.map((sim) => ({
+    try {
+      // 1. Things Mobile EN PREMIER (le plus rapide généralement)
+      try {
+        console.log("📱 Chargement Things Mobile...");
+        const tmSims = await listAllThingsMobileSims();
+        const tmUnified = tmSims.map((sim) => ({
           id: `tm-${sim.iccid || sim.msisdn}`,
           provider: "Things Mobile" as const,
           msisdn: sim.msisdn || "—",
@@ -175,88 +182,138 @@ export function MultiProviderSimTab() {
           tag: sim.tag,
           dataUsage: formatBytes(sim.monthlyTrafficBytes),
           lastConnection: sim.lastConnectionDate,
-        })),
-      })),
+        }));
 
-      // Phenix
-      listPhenixSims().then((phenixSims) => ({
-        provider: "Phenix" as const,
-        sims: phenixSims.map((sim) => ({
+        setAllSims(prev => [...prev, ...tmUnified]); // Afficher immédiatement
+        newStatuses.push({
+          provider: "Things Mobile",
+          status: "success",
+          count: tmUnified.length,
+        });
+        console.log(`✅ Things Mobile: ${tmUnified.length} SIMs affichées`);
+      } catch (err: any) {
+        console.error("❌ Things Mobile error:", err);
+        newStatuses.push({
+          provider: "Things Mobile",
+          status: "error",
+          count: 0,
+          error: err.message,
+        });
+      }
+
+      // 2. Phenix EN DEUXIÈME
+      try {
+        console.log("📱 Chargement Phenix...");
+        const phenixSims = await listPhenixSims();
+        const phenixUnified = phenixSims.map((sim) => ({
           id: `phenix-${sim.iccid || sim.msisdn}`,
           provider: "Phenix" as const,
           msisdn: sim.msisdn || "—",
           iccid: sim.iccid || "—",
           status: sim.status || "unknown",
-        })),
-      })),
+        }));
 
-      // Truphone (toutes les pages) SANS enrichissement initial pour performance
-      listTruphoneSims().then((truphoneSims) => {
-        console.log(`📊 Truphone: ${truphoneSims.length} SIM(s) récupérées (enrichissement progressif à venir)`);
-        return {
-          provider: "Truphone" as const,
-          sims: truphoneSims.map((sim) => ({
-            id: `truphone-${sim.iccid || sim.simId}`,
-            provider: "Truphone" as const,
-            msisdn: sim.msisdn || "—",
-            iccid: sim.iccid || "—",
-            status: sim.status || "unknown",
-            label: sim.label,
-            description: sim.description,
-            imei: sim.imei,
-            servicePack: sim.servicePack,
-            simType: sim.simType,
-            organizationName: sim.organizationName,
-            // Données d'utilisation seront chargées progressivement
-            dataUsageBytes: undefined,
-            dataAllowanceBytes: undefined,
-            dataUsagePercent: undefined,
-            smsCount: undefined,
-            callDurationMinutes: undefined,
-            isLowData: false,
-            _truphoneSimRef: sim, // Référence à la SIM originale pour enrichissement lazy
-          })),
-        };
-      }),
-    ]);
-
-    // Traiter les résultats
-    results.forEach((result, index) => {
-      const providerNames = ["Things Mobile", "Phenix", "Truphone"];
-      const providerName = providerNames[index];
-
-      if (result.status === "fulfilled") {
-        const data = result.value;
-        allSims.push(...data.sims);
+        setAllSims(prev => [...prev, ...phenixUnified]); // Afficher immédiatement
         newStatuses.push({
-          provider: providerName,
+          provider: "Phenix",
           status: "success",
-          count: data.sims.length,
+          count: phenixUnified.length,
         });
-        console.log(`✅ ${providerName}: ${data.sims.length} SIMs`);
-      } else {
-        console.error(`❌ ${providerName} error:`, result.reason);
+        console.log(`✅ Phenix: ${phenixUnified.length} SIMs affichées`);
+      } catch (err: any) {
+        console.error("❌ Phenix error:", err);
         newStatuses.push({
-          provider: providerName,
+          provider: "Phenix",
           status: "error",
           count: 0,
-          error: result.reason?.message || "Erreur inconnue",
+          error: err.message,
         });
       }
-    });
 
-    const duration = Date.now() - startTime;
-    setProviderStatuses(newStatuses);
-    console.log(`📊 Total: ${allSims.length} SIMs chargées en ${duration}ms`);
-    return allSims;
+      // 3. Truphone EN DERNIER (le plus lent) - CHARGEMENT PAGE PAR PAGE
+      try {
+        console.log("📱 Chargement Truphone page par page...");
+        let truphonePage = 1;
+        let hasMoreTruphone = true;
+        let totalTruphone = 0;
+
+        while (hasMoreTruphone) {
+          const pageResult = await listTruphoneSimsPaged(truphonePage, 500);
+
+          if (pageResult.sims.length > 0) {
+            const truphoneUnified = pageResult.sims.map((sim) => ({
+              id: `truphone-${sim.iccid || sim.simId}`,
+              provider: "Truphone" as const,
+              msisdn: sim.msisdn || "—",
+              iccid: sim.iccid || "—",
+              status: sim.status || "unknown",
+              label: sim.label,
+              description: sim.description,
+              imei: sim.imei,
+              servicePack: sim.servicePack,
+              simType: sim.simType,
+              organizationName: sim.organizationName,
+              dataUsageBytes: undefined,
+              dataAllowanceBytes: undefined,
+              dataUsagePercent: undefined,
+              smsCount: undefined,
+              callDurationMinutes: undefined,
+              isLowData: false,
+              _truphoneSimRef: sim,
+            }));
+
+            setAllSims(prev => [...prev, ...truphoneUnified]); // Afficher IMMÉDIATEMENT chaque page
+            totalTruphone += truphoneUnified.length;
+            console.log(`✅ Truphone page ${truphonePage}: ${truphoneUnified.length} SIMs affichées (total: ${totalTruphone})`);
+          }
+
+          hasMoreTruphone = pageResult.hasMore;
+          truphonePage++;
+
+          // Protection contre boucle infinie
+          if (truphonePage > 50) {
+            console.warn("⚠️ Truphone: Limite de 50 pages atteinte");
+            break;
+          }
+        }
+
+        newStatuses.push({
+          provider: "Truphone",
+          status: "success",
+          count: totalTruphone,
+        });
+        console.log(`✅ Truphone: ${totalTruphone} SIMs au total (enrichissement progressif à venir)`);
+      } catch (err: any) {
+        console.error("❌ Truphone error:", err);
+        newStatuses.push({
+          provider: "Truphone",
+          status: "error",
+          count: 0,
+          error: err.message,
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      setProviderStatuses(newStatuses);
+      console.log(`📊 Total: ${allSims.length} SIMs chargées en ${duration}ms`);
+    } catch (err: any) {
+      console.error("❌ Erreur générale:", err);
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Charger au montage
+  useEffect(() => {
+    loadSimsProgressively();
+  }, []);
+
+  const refetch = () => {
+    loadSimsProgressively();
   };
 
-  const { data: allSims = [], isLoading, error, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ["all-sims"],
-    queryFn: fetchAllSims,
-    refetchInterval: 120000, // Rafraîchir toutes les 2 minutes
-    retry: 1,
-  });
+  const dataUpdatedAt = Date.now(); // Simuler pour compatibilité
 
   // Enrichissement progressif des SIMs Truphone en arrière-plan
   useEffect(() => {
