@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "/api/truphone";
+const BASE_URL = "/api/truphone/api";
 let authToken: string | null = null;
 
 export interface TruphoneSimStatus {
