@@ -74,15 +74,27 @@ const ensureCredentials = () => {
   const password = import.meta.env.VITE_TRUPHONE_PASSWORD;
 
   if (apiKey) {
+    console.log("✅ Truphone: API Key trouvée");
     return { apiKey, username: null, password: null };
   }
 
   if (!username || !password) {
+    console.error("❌ Truphone: Credentials manquantes!");
+    console.error("📋 Pour configurer Truphone:");
+    console.error("   1. Créez un fichier .env à la racine du projet");
+    console.error("   2. Ajoutez l'une de ces configurations:");
+    console.error("      Option A - API Key:");
+    console.error("        VITE_TRUPHONE_API_KEY=votre_api_key");
+    console.error("      Option B - Username/Password:");
+    console.error("        VITE_TRUPHONE_USERNAME=votre_username");
+    console.error("        VITE_TRUPHONE_PASSWORD=votre_password");
+    console.error("   3. Redémarrez le serveur de développement");
     throw new Error(
-      "Truphone credentials missing. Please define either VITE_TRUPHONE_API_KEY or VITE_TRUPHONE_USERNAME and VITE_TRUPHONE_PASSWORD in your environment."
+      "❌ Truphone: Credentials manquantes. Voir la console pour les instructions de configuration."
     );
   }
 
+  console.log("✅ Truphone: Username/Password trouvés");
   return { apiKey: null, username, password };
 };
 
@@ -411,6 +423,19 @@ export const listTruphoneSimsPaged = async (
       page,
     };
   } catch (error: any) {
+    // Détecter les erreurs d'authentification
+    if (error.message?.includes("credentials") || error.message?.includes("Credentials")) {
+      console.error("❌ Truphone: Erreur d'authentification - credentials manquantes");
+      throw new Error("Truphone: Configuration manquante. Veuillez configurer vos credentials Truphone dans le fichier .env");
+    }
+
+    // Détecter les redirections vers la page de login (erreur réseau CORS)
+    if (error.message === "Network Error" || error.code === "ERR_NETWORK") {
+      console.error("❌ Truphone: Erreur réseau - probablement une redirection vers la page de login");
+      console.error("   Cela indique que l'authentification a échoué ou que les credentials sont invalides");
+      throw new Error("Truphone: Authentification échouée. Vérifiez vos credentials dans le fichier .env");
+    }
+
     console.error("Truphone list SIMs paged error:", {
       message: error.message,
       response: error.response?.data,
