@@ -5,14 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable";
-import { Loader2, RefreshCw, Search, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
 import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
   Select,
   SelectContent,
@@ -146,7 +145,10 @@ const statusToDisplayText = (status: string): string => {
 export function MultiProviderSimTab() {
   const [searchValue, setSearchValue] = useState("");
   const [selectedSimForRecharge, setSelectedSimForRecharge] = useState<UnifiedSim | null>(null);
-  const [selectedOperator, setSelectedOperator] = useState<string>("all");
+  // Filtres
+  const [providerFilter, setProviderFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dataAlertFilter, setDataAlertFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([
@@ -430,13 +432,62 @@ export function MultiProviderSimTab() {
   }, [dataUpdatedAt, isLoading]); // allSims et isEnriching exclus volontairement pour éviter les boucles
 
   const filteredSims = allSims.filter((sim) => {
-    if (!searchValue) return true;
-    const search = searchValue.toLowerCase();
-    return (
-      sim.msisdn.toLowerCase().includes(search) ||
-      sim.iccid.toLowerCase().includes(search) ||
-      sim.provider.toLowerCase().includes(search)
-    );
+    // Filtre de recherche texte
+    if (searchValue) {
+      const search = searchValue.toLowerCase();
+      const matchesSearch =
+        sim.msisdn.toLowerCase().includes(search) ||
+        sim.iccid.toLowerCase().includes(search) ||
+        sim.provider.toLowerCase().includes(search);
+      if (!matchesSearch) return false;
+    }
+
+    // Filtre opérateur
+    if (providerFilter !== "all" && sim.provider !== providerFilter) {
+      return false;
+    }
+
+    // Filtre statut
+    if (statusFilter !== "all") {
+      const normalizedStatus = sim.status?.toLowerCase();
+      if (statusFilter === "active" && normalizedStatus !== "active" && normalizedStatus !== "activated") {
+        return false;
+      }
+      if (statusFilter === "inactive" && normalizedStatus !== "inactive" && normalizedStatus !== "deactivated" && normalizedStatus !== "not active") {
+        return false;
+      }
+      if (statusFilter === "suspended" && normalizedStatus !== "suspended") {
+        return false;
+      }
+      if (statusFilter === "other" &&
+          normalizedStatus !== "active" && normalizedStatus !== "activated" &&
+          normalizedStatus !== "inactive" && normalizedStatus !== "deactivated" && normalizedStatus !== "not active" &&
+          normalizedStatus !== "suspended") {
+        // Afficher les autres statuts
+      } else if (statusFilter === "other") {
+        return false;
+      }
+    }
+
+    // Filtre niveau d'alerte données
+    if (dataAlertFilter !== "all") {
+      const usagePercent = sim.dataUsagePercent;
+
+      if (dataAlertFilter === "ok" && (usagePercent === undefined || usagePercent >= DATA_USAGE_THRESHOLDS.WARNING)) {
+        return false;
+      }
+      if (dataAlertFilter === "warning" && (usagePercent === undefined || usagePercent < DATA_USAGE_THRESHOLDS.WARNING || usagePercent >= DATA_USAGE_THRESHOLDS.CRITICAL)) {
+        return false;
+      }
+      if (dataAlertFilter === "critical" && (usagePercent === undefined || usagePercent < DATA_USAGE_THRESHOLDS.CRITICAL || usagePercent >= DATA_USAGE_THRESHOLDS.DEPLETED)) {
+        return false;
+      }
+      if (dataAlertFilter === "depleted" && (usagePercent === undefined || usagePercent < DATA_USAGE_THRESHOLDS.DEPLETED)) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   const columns: Column[] = [
@@ -790,103 +841,70 @@ export function MultiProviderSimTab() {
             </Alert>
           )}
 
-          {/* Donut Chart - Consommation par opérateur */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Distribution des SIMs par opérateur</CardTitle>
-                <Select value={selectedOperator} onValueChange={setSelectedOperator}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Tous les opérateurs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les opérateurs</SelectItem>
-                    <SelectItem value="Things Mobile">Things Mobile</SelectItem>
-                    <SelectItem value="Phenix">Phenix</SelectItem>
-                    <SelectItem value="Truphone">Truphone</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                const COLORS = {
-                  "Things Mobile": "#10b981",
-                  "Phenix": "#8b5cf6",
-                  "Truphone": "#3b82f6",
-                };
+          {/* Filtres */}
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Opérateur</label>
+              <Select value={providerFilter} onValueChange={setProviderFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tous les opérateurs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les opérateurs</SelectItem>
+                  <SelectItem value="Things Mobile">Things Mobile</SelectItem>
+                  <SelectItem value="Phenix">Phenix</SelectItem>
+                  <SelectItem value="Truphone">Truphone</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                const chartData =
-                  selectedOperator === "all"
-                    ? [
-                        {
-                          name: "Things Mobile",
-                          value: stats.thingsMobile,
-                          color: COLORS["Things Mobile"],
-                        },
-                        { name: "Phenix", value: stats.phenix, color: COLORS["Phenix"] },
-                        { name: "Truphone", value: stats.truphone, color: COLORS["Truphone"] },
-                      ].filter((item) => item.value > 0)
-                    : [
-                        {
-                          name: selectedOperator,
-                          value:
-                            selectedOperator === "Things Mobile"
-                              ? stats.thingsMobile
-                              : selectedOperator === "Phenix"
-                                ? stats.phenix
-                                : stats.truphone,
-                          color: COLORS[selectedOperator as keyof typeof COLORS],
-                        },
-                      ];
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Statut</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tous les statuts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="active">Actif</SelectItem>
+                  <SelectItem value="inactive">Inactif</SelectItem>
+                  <SelectItem value="suspended">Suspendu</SelectItem>
+                  <SelectItem value="other">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                const totalSims =
-                  selectedOperator === "all"
-                    ? stats.total
-                    : selectedOperator === "Things Mobile"
-                      ? stats.thingsMobile
-                      : selectedOperator === "Phenix"
-                        ? stats.phenix
-                        : stats.truphone;
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Niveau d'alerte</label>
+              <Select value={dataAlertFilter} onValueChange={setDataAlertFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tous les niveaux" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les niveaux</SelectItem>
+                  <SelectItem value="ok">✅ OK (&lt;{DATA_USAGE_THRESHOLDS.WARNING}%)</SelectItem>
+                  <SelectItem value="warning">⚡ Attention ({DATA_USAGE_THRESHOLDS.WARNING}-{DATA_USAGE_THRESHOLDS.CRITICAL}%)</SelectItem>
+                  <SelectItem value="critical">⚠️ Critique ({DATA_USAGE_THRESHOLDS.CRITICAL}-{DATA_USAGE_THRESHOLDS.DEPLETED}%)</SelectItem>
+                  <SelectItem value="depleted">🚨 Épuisé (≥{DATA_USAGE_THRESHOLDS.DEPLETED}%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                return (
-                  <div className="flex flex-col items-center">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={5}
-                          dataKey="value"
-                          label={(entry) => `${entry.name}: ${entry.value}`}
-                        >
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) => [`${value} SIMs`, "Nombre"]}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="text-center mt-4">
-                      <p className="text-3xl font-bold text-primary">{totalSims}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedOperator === "all" ? "Total SIMs" : `SIMs ${selectedOperator}`}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
-
-          {/* Statistics Cards - Removed to improve performance as requested */}
-          {/* Statistics are displayed in the provider status cards above and in the donut chart */}
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setProviderFilter("all");
+                  setStatusFilter("all");
+                  setDataAlertFilter("all");
+                  setSearchValue("");
+                }}
+                className="w-full"
+              >
+                Réinitialiser filtres
+              </Button>
+            </div>
+          </div>
 
           {/* Data Table */}
           <div className="rounded-lg border bg-card">
