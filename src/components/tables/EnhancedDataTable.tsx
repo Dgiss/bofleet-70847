@@ -180,8 +180,8 @@ export function EnhancedDataTable({
   const hasVisibleColumns = visibleColumns.length > 0;
   const displayData = enablePagination ? paginatedData : sortedData;
 
-  // Disable virtualization to use page scroll
-  const enableVirtual = false;
+  // Enable virtualization for better performance with large datasets
+  const enableVirtual = true;
   const parentRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: displayData.length,

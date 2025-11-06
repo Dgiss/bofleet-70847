@@ -44,6 +44,12 @@ interface UnifiedSim {
   smsCount?: number;
   callDurationMinutes?: number;
   isLowData?: boolean; // true si l'utilisation dépasse le seuil d'alerte
+  // Données de statut détaillé (Truphone)
+  allowedData?: string;
+  remainingData?: string;
+  allowedTime?: string;
+  remainingTime?: string;
+  testStateStartDate?: string;
   _truphoneSimRef?: any; // Référence à la SIM Truphone originale pour enrichissement lazy
   _enriched?: boolean; // Marque si la SIM a été enrichie
 }
@@ -375,6 +381,11 @@ export function MultiProviderSimTab() {
                         dataUsagePercent: enrichedSim.dataUsagePercent,
                         smsCount: enrichedSim.smsCount,
                         callDurationMinutes: enrichedSim.callDurationMinutes,
+                        allowedData: enrichedSim.allowedData,
+                        remainingData: enrichedSim.remainingData,
+                        allowedTime: enrichedSim.allowedTime,
+                        remainingTime: enrichedSim.remainingTime,
+                        testStateStartDate: enrichedSim.testStateStartDate,
                         isLowData: enrichedSim.dataUsagePercent !== undefined &&
                                    enrichedSim.dataUsagePercent >= DATA_USAGE_THRESHOLDS.WARNING,
                         _enriched: true,
@@ -517,6 +528,61 @@ export function MultiProviderSimTab() {
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.callDurationMinutes !== undefined) {
           return `${row.callDurationMinutes} min`;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "allowedData",
+      label: "Données autorisées (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.allowedData) {
+          return row.allowedData;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "remainingData",
+      label: "Données restantes (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.remainingData) {
+          return row.remainingData;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "allowedTime",
+      label: "Temps autorisé (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.allowedTime) {
+          return row.allowedTime;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "remainingTime",
+      label: "Temps restant (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.remainingTime) {
+          return row.remainingTime;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "testStateStartDate",
+      label: "Date test (Truphone)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Truphone" && row.testStateStartDate) {
+          return row.testStateStartDate;
         }
         return "—";
       }
@@ -819,47 +885,8 @@ export function MultiProviderSimTab() {
             </CardContent>
           </Card>
 
-          {/* Statistics Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Total SIMs</p>
-                <p className="text-2xl font-semibold">{stats.total}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Things Mobile</p>
-                <p className="text-2xl font-semibold">{stats.thingsMobile}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-purple-500">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Phenix</p>
-                <p className="text-2xl font-semibold">{stats.phenix}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-orange-500">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Truphone</p>
-                <p className="text-2xl font-semibold">{stats.truphone}</p>
-              </CardContent>
-            </Card>
-            <Card className={`border-l-4 ${criticalSims.length > 0 ? 'border-l-red-500 bg-red-50 dark:bg-red-950' : lowDataSims.length > 0 ? 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950' : 'border-l-gray-500'}`}>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  {criticalSims.length > 0 ? <AlertTriangle className="h-3 w-3 text-red-500" /> : lowDataSims.length > 0 ? <AlertTriangle className="h-3 w-3 text-yellow-500" /> : null}
-                  SIMs à surveiller
-                </p>
-                <p className={`text-2xl font-semibold ${criticalSims.length > 0 ? 'text-red-600' : lowDataSims.length > 0 ? 'text-yellow-600' : ''}`}>
-                  {lowDataSims.length}
-                </p>
-                {criticalSims.length > 0 && (
-                  <p className="text-xs text-red-600 mt-1">Dont {criticalSims.length} critique(s)</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          {/* Statistics Cards - Removed to improve performance as requested */}
+          {/* Statistics are displayed in the provider status cards above and in the donut chart */}
 
           {/* Data Table */}
           <div className="rounded-lg border bg-card">
