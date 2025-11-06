@@ -3,6 +3,17 @@ import axios from "axios";
 const BASE_URL = "/api/truphone/api";
 let authToken: string | null = null;
 
+export interface TruphoneSimStatus {
+  iccid: string;
+  status: string;
+  date: string;
+  test_state_start_date?: string;
+  allowed_data?: string; // Données autorisées (ex: "1000 MB")
+  allowed_time?: string; // Temps autorisé
+  remaining_data?: string; // Données restantes (ex: "750 MB")
+  remaining_time?: string; // Temps restant
+}
+
 export interface TruphoneSim {
   simId: string;
   iccid: string;
@@ -22,6 +33,12 @@ export interface TruphoneSim {
   smsCount?: number; // Nombre de SMS envoyés
   callDurationMinutes?: number; // Durée d'appels en minutes
   lastUpdated?: string; // Date de dernière mise à jour des données
+  // Infos détaillées depuis /status endpoint
+  allowedData?: string; // Ex: "1000 MB"
+  remainingData?: string; // Ex: "750 MB"
+  allowedTime?: string;
+  remainingTime?: string;
+  testStateStartDate?: string;
 }
 
 export interface TruphoneUsage {
@@ -243,6 +260,35 @@ export const getTruphoneSimStatus = async (iccid: string): Promise<TruphoneSim |
     };
   } catch (error) {
     console.error("Truphone get SIM status error:", error);
+    return null;
+  }
+};
+
+/**
+ * Récupère le status détaillé d'une SIM (données restantes, autorisées, etc.)
+ * Endpoint: GET /api/v2.2/sims/{iccid}/status
+ */
+export const getTruphoneSimDetailedStatus = async (iccid: string): Promise<TruphoneSimStatus | null> => {
+  try {
+    const headers = await getHeaders();
+    const response = await axios.get(`${BASE_URL}/v2.2/sims/${iccid}/status`, {
+      headers,
+    });
+
+    const data = response.data;
+
+    return {
+      iccid: data.iccid ?? iccid,
+      status: data.status ?? "unknown",
+      date: data.date ?? new Date().toISOString(),
+      test_state_start_date: data.test_state_start_date ?? undefined,
+      allowed_data: data.allowed_data ?? undefined,
+      allowed_time: data.allowed_time ?? undefined,
+      remaining_data: data.remaining_data ?? undefined,
+      remaining_time: data.remaining_time ?? undefined,
+    };
+  } catch (error) {
+    console.error(`Erreur récupération status détaillé ${iccid}:`, error);
     return null;
   }
 };
@@ -481,11 +527,14 @@ export const enrichTruphoneSimWithUsage = async (
   dataAllowanceMB?: number
 ): Promise<TruphoneSim> => {
   try {
-    // Récupérer les données d'utilisation pour cette SIM
-    const usage = await getTruphoneUsage(sim.iccid);
+    // Charger en parallèle l'usage ET le status détaillé
+    const [usage, detailedStatus] = await Promise.all([
+      getTruphoneUsage(sim.iccid),
+      getTruphoneSimDetailedStatus(sim.iccid)
+    ]);
 
-    if (!usage) {
-      console.warn(`Impossible de récupérer les données d'utilisation pour ${sim.iccid}`);
+    if (!usage && !detailedStatus) {
+      console.warn(`Impossible de récupérer les données pour ${sim.iccid}`);
       return sim;
     }
 
@@ -494,13 +543,20 @@ export const enrichTruphoneSimWithUsage = async (
 
     const enrichedSim: TruphoneSim = {
       ...sim,
-      dataUsageBytes: usage.dataUsage,
+      // Données d'usage
+      dataUsageBytes: usage?.dataUsage,
       dataAllowanceBytes,
-      dataUsagePercent: dataAllowanceBytes
+      dataUsagePercent: dataAllowanceBytes && usage?.dataUsage
         ? Math.min(100, (usage.dataUsage / dataAllowanceBytes) * 100)
         : undefined,
-      smsCount: usage.smsCount,
-      callDurationMinutes: usage.callDuration,
+      smsCount: usage?.smsCount,
+      callDurationMinutes: usage?.callDuration,
+      // Données détaillées du status (NOUVEAU !)
+      allowedData: detailedStatus?.allowed_data,
+      remainingData: detailedStatus?.remaining_data,
+      allowedTime: detailedStatus?.allowed_time,
+      remainingTime: detailedStatus?.remaining_time,
+      testStateStartDate: detailedStatus?.test_state_start_date,
       lastUpdated: new Date().toISOString(),
     };
 
