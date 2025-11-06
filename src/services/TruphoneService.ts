@@ -387,9 +387,9 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
 
     let allSims: any[] = [];
     let page = 1;
-    const perPage = 2000; // Augmenté pour réduire le nombre de requêtes
+    const perPage = 500; // Limite de l'API Truphone (ne peut pas être augmentée)
     let hasMore = true;
-    let maxPages = 10; // Limite de sécurité (20000 SIMs max)
+    let maxPages = 50; // Limite de sécurité augmentée (25000 SIMs max)
 
     // Pagination: récupérer toutes les pages
     while (hasMore && page <= maxPages) {
@@ -415,12 +415,21 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
       allSims = allSims.concat(sims);
 
       // Vérifier s'il y a plus de pages
-      // Si on reçoit moins que perPage, c'est la dernière page
+      // Si on reçoit moins de 500 (limite API), c'est la dernière page
+      // Important: on continue tant qu'on reçoit EXACTEMENT 500 (la limite)
       if (sims.length < perPage) {
         hasMore = false;
+        console.log(`📄 Truphone: Dernière page atteinte (${sims.length} < ${perPage})`);
+      } else if (sims.length === 0) {
+        hasMore = false;
+        console.log(`📄 Truphone: Page vide, fin de la pagination`);
       } else {
         page++;
       }
+    }
+
+    if (page > maxPages) {
+      console.warn(`⚠️ Truphone: Limite de sécurité atteinte (${maxPages} pages). Il pourrait y avoir plus de SIMs.`);
     }
 
     const totalDuration = Date.now() - startTime;
