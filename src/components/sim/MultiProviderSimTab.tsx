@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable";
 import { Loader2, RefreshCw, Search, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
@@ -44,6 +44,8 @@ interface UnifiedSim {
   smsCount?: number;
   callDurationMinutes?: number;
   isLowData?: boolean; // true si l'utilisation dépasse le seuil d'alerte
+  _truphoneSimRef?: any; // Référence à la SIM Truphone originale pour enrichissement lazy
+  _enriched?: boolean; // Marque si la SIM a été enrichie
 }
 
 interface ProviderStatus {
@@ -140,11 +142,16 @@ export function MultiProviderSimTab() {
   const [selectedSimForRecharge, setSelectedSimForRecharge] = useState<UnifiedSim | null>(null);
   const [selectedOperator, setSelectedOperator] = useState<string>("all");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([
     { provider: "Things Mobile", status: "loading", count: 0 },
     { provider: "Phenix", status: "loading", count: 0 },
     { provider: "Truphone", status: "loading", count: 0 },
   ]);
+  const [enrichmentProgress, setEnrichmentProgress] = useState({ current: 0, total: 0 });
+  const [isEnriching, setIsEnriching] = useState(false);
+  const enrichmentDoneRef = useRef(false);
+  const lastDataUpdateRef = useRef(0);
 
   const fetchAllSims = async (): Promise<UnifiedSim[]> => {
     const allSims: UnifiedSim[] = [];
@@ -183,47 +190,34 @@ export function MultiProviderSimTab() {
         })),
       })),
 
-      // Truphone (toutes les pages) avec enrichissement des données d'utilisation
-      (async () => {
-        try {
-          const truphoneSims = await listTruphoneSims();
-          console.log(`📊 Truphone: ${truphoneSims.length} SIM(s) récupérées, enrichissement en cours...`);
-
-          // Récupérer les rate plans pour calculer les pourcentages d'utilisation
-          const ratePlans = await getAvailableTruphoneRatePlans();
-          console.log(`📋 Truphone: ${ratePlans.length} rate plan(s) disponible(s)`);
-
-          // Enrichir les SIMs avec leurs données d'utilisation (par batch de 3)
-          const enrichedSims = await enrichTruphoneSimsWithUsage(truphoneSims, ratePlans, 3);
-
-          return {
+      // Truphone (toutes les pages) SANS enrichissement initial pour performance
+      listTruphoneSims().then((truphoneSims) => {
+        console.log(`📊 Truphone: ${truphoneSims.length} SIM(s) récupérées (enrichissement progressif à venir)`);
+        return {
+          provider: "Truphone" as const,
+          sims: truphoneSims.map((sim) => ({
+            id: `truphone-${sim.iccid || sim.simId}`,
             provider: "Truphone" as const,
-            sims: enrichedSims.map((sim) => ({
-              id: `truphone-${sim.iccid || sim.simId}`,
-              provider: "Truphone" as const,
-              msisdn: sim.msisdn || "—",
-              iccid: sim.iccid || "—",
-              status: sim.status || "unknown",
-              label: sim.label,
-              description: sim.description,
-              imei: sim.imei,
-              servicePack: sim.servicePack,
-              simType: sim.simType,
-              organizationName: sim.organizationName,
-              // Nouvelles données d'utilisation
-              dataUsageBytes: sim.dataUsageBytes,
-              dataAllowanceBytes: sim.dataAllowanceBytes,
-              dataUsagePercent: sim.dataUsagePercent,
-              smsCount: sim.smsCount,
-              callDurationMinutes: sim.callDurationMinutes,
-              isLowData: sim.dataUsagePercent !== undefined && sim.dataUsagePercent >= DATA_USAGE_THRESHOLDS.WARNING,
-            })),
-          };
-        } catch (error) {
-          console.error("Erreur lors du chargement Truphone:", error);
-          throw error;
-        }
-      })(),
+            msisdn: sim.msisdn || "—",
+            iccid: sim.iccid || "—",
+            status: sim.status || "unknown",
+            label: sim.label,
+            description: sim.description,
+            imei: sim.imei,
+            servicePack: sim.servicePack,
+            simType: sim.simType,
+            organizationName: sim.organizationName,
+            // Données d'utilisation seront chargées progressivement
+            dataUsageBytes: undefined,
+            dataAllowanceBytes: undefined,
+            dataUsagePercent: undefined,
+            smsCount: undefined,
+            callDurationMinutes: undefined,
+            isLowData: false,
+            _truphoneSimRef: sim, // Référence à la SIM originale pour enrichissement lazy
+          })),
+        };
+      }),
     ]);
 
     // Traiter les résultats
@@ -257,12 +251,115 @@ export function MultiProviderSimTab() {
     return allSims;
   };
 
-  const { data: allSims = [], isLoading, error, refetch } = useQuery({
+  const { data: allSims = [], isLoading, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["all-sims"],
     queryFn: fetchAllSims,
     refetchInterval: 120000, // Rafraîchir toutes les 2 minutes
     retry: 1,
   });
+
+  // Enrichissement progressif des SIMs Truphone en arrière-plan
+  useEffect(() => {
+    // Vérifier si les données ont changé (nouveau chargement)
+    if (dataUpdatedAt !== lastDataUpdateRef.current) {
+      lastDataUpdateRef.current = dataUpdatedAt;
+      enrichmentDoneRef.current = false; // Réinitialiser pour le nouveau chargement
+    }
+
+    const enrichTruphoneSims = async () => {
+      // Ne pas enrichir si on est déjà en train d'enrichir, si on est en chargement, ou si c'est déjà fait
+      if (isEnriching || isLoading || allSims.length === 0 || enrichmentDoneRef.current) return;
+
+      // Trouver les SIMs Truphone non enrichies
+      const truphoneSims = allSims.filter(
+        sim => sim.provider === "Truphone" && !sim._enriched && sim._truphoneSimRef
+      );
+
+      if (truphoneSims.length === 0) {
+        enrichmentDoneRef.current = true;
+        return;
+      }
+
+      setIsEnriching(true);
+      setEnrichmentProgress({ current: 0, total: truphoneSims.length });
+      console.log(`🔄 Démarrage de l'enrichissement progressif: ${truphoneSims.length} SIMs Truphone`);
+
+      try {
+        // Charger les rate plans une seule fois
+        const ratePlans = await getAvailableTruphoneRatePlans();
+        console.log(`📋 ${ratePlans.length} rate plan(s) disponibles pour l'enrichissement`);
+
+        // Enrichir par batch de 5 SIMs pour ne pas surcharger l'API
+        const BATCH_SIZE = 5;
+        let enrichedCount = 0;
+
+        for (let i = 0; i < truphoneSims.length; i += BATCH_SIZE) {
+          const batch = truphoneSims.slice(i, i + BATCH_SIZE);
+
+          // Enrichir le batch en parallèle
+          const enrichPromises = batch.map(async (unifiedSim) => {
+            const sim = unifiedSim._truphoneSimRef;
+            const ratePlan = ratePlans?.find(plan => plan.id === sim.servicePack);
+            const dataAllowanceMB = ratePlan?.dataAllowance;
+
+            try {
+              const enrichedSim = await enrichTruphoneSimWithUsage(sim, dataAllowanceMB);
+
+              // Mettre à jour la SIM dans le cache React Query
+              queryClient.setQueryData(["all-sims"], (oldData: UnifiedSim[] | undefined) => {
+                if (!oldData) return oldData;
+
+                return oldData.map(s =>
+                  s.id === unifiedSim.id
+                    ? {
+                        ...s,
+                        dataUsageBytes: enrichedSim.dataUsageBytes,
+                        dataAllowanceBytes: enrichedSim.dataAllowanceBytes,
+                        dataUsagePercent: enrichedSim.dataUsagePercent,
+                        smsCount: enrichedSim.smsCount,
+                        callDurationMinutes: enrichedSim.callDurationMinutes,
+                        isLowData: enrichedSim.dataUsagePercent !== undefined &&
+                                   enrichedSim.dataUsagePercent >= DATA_USAGE_THRESHOLDS.WARNING,
+                        _enriched: true,
+                      }
+                    : s
+                );
+              });
+
+              return true;
+            } catch (error) {
+              console.error(`Erreur enrichissement ${sim.iccid}:`, error);
+              return false;
+            }
+          });
+
+          await Promise.allSettled(enrichPromises);
+          enrichedCount += batch.length;
+          setEnrichmentProgress({ current: enrichedCount, total: truphoneSims.length });
+
+          // Petite pause entre les batchs pour éviter de surcharger l'API
+          if (i + BATCH_SIZE < truphoneSims.length) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+
+        console.log(`✅ Enrichissement terminé: ${enrichedCount}/${truphoneSims.length} SIMs`);
+        enrichmentDoneRef.current = true;
+      } catch (error) {
+        console.error("Erreur lors de l'enrichissement progressif:", error);
+        enrichmentDoneRef.current = true; // Marquer comme fait même en cas d'erreur
+      } finally {
+        setIsEnriching(false);
+      }
+    };
+
+    // Démarrer l'enrichissement après un court délai pour laisser l'UI se charger
+    const timer = setTimeout(() => {
+      enrichTruphoneSims();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [dataUpdatedAt, isLoading]); // allSims et isEnriching exclus volontairement pour éviter les boucles
 
   const filteredSims = allSims.filter((sim) => {
     if (!searchValue) return true;
@@ -409,6 +506,30 @@ export function MultiProviderSimTab() {
 
   return (
     <div className="space-y-6">
+      {/* Barre de progression de l'enrichissement */}
+      {isEnriching && enrichmentProgress.total > 0 && (
+        <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+          <AlertTitle>Enrichissement des données Truphone en cours...</AlertTitle>
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="text-sm">
+                Chargement des données d'utilisation: {enrichmentProgress.current} / {enrichmentProgress.total} SIMs
+              </p>
+              <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${(enrichmentProgress.current / enrichmentProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Les SIMs de base sont déjà affichées. Les données d'utilisation sont chargées progressivement en arrière-plan.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Alerte pour SIMs presque épuisées */}
       {lowDataSims.length > 0 && (
         <Alert
