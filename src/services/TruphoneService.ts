@@ -541,6 +541,27 @@ export const listTruphoneSims = async (): Promise<TruphoneSim[]> => {
 };
 
 /**
+ * Parse une valeur de données (ex: "1000 MB", "1.5 GB") en bytes
+ */
+const parseDataToBytes = (dataStr: string | undefined): number | undefined => {
+  if (!dataStr) return undefined;
+
+  const match = dataStr.match(/^([\d.]+)\s*(MB|GB|KB|B)?$/i);
+  if (!match) return undefined;
+
+  const value = parseFloat(match[1]);
+  const unit = (match[2] || 'B').toUpperCase();
+
+  switch (unit) {
+    case 'GB': return value * 1_000_000_000;
+    case 'MB': return value * 1_000_000;
+    case 'KB': return value * 1_000;
+    case 'B': return value;
+    default: return undefined;
+  }
+};
+
+/**
  * Enrichit une SIM Truphone avec ses données d'utilisation
  *
  * @param sim - La SIM à enrichir
@@ -552,36 +573,40 @@ export const enrichTruphoneSimWithUsage = async (
   dataAllowanceMB?: number
 ): Promise<TruphoneSim> => {
   try {
-    // Charger en parallèle l'usage ET le status détaillé
-    const [usage, detailedStatus] = await Promise.all([
-      getTruphoneUsage(sim.iccid),
-      getTruphoneSimDetailedStatus(sim.iccid)
-    ]);
+    // Charger uniquement le status détaillé (contient toutes les infos nécessaires)
+    const detailedStatus = await getTruphoneSimDetailedStatus(sim.iccid);
 
-    if (!usage && !detailedStatus) {
-      console.warn(`Impossible de récupérer les données pour ${sim.iccid}`);
+    if (!detailedStatus) {
+      console.warn(`Impossible de récupérer le statut détaillé pour ${sim.iccid}`);
       return sim;
     }
 
-    // Si on n'a pas le quota, on ne peut pas calculer le pourcentage
-    const dataAllowanceBytes = dataAllowanceMB ? dataAllowanceMB * 1_000_000 : undefined;
+    // Extraire et calculer les données d'utilisation depuis le status
+    const allowedBytes = parseDataToBytes(detailedStatus.allowed_data);
+    const remainingBytes = parseDataToBytes(detailedStatus.remaining_data);
+
+    // Calculer l'utilisation: utilisé = autorisé - restant
+    const usageBytes = (allowedBytes && remainingBytes)
+      ? allowedBytes - remainingBytes
+      : undefined;
+
+    // Calculer le pourcentage d'utilisation
+    const usagePercent = (usageBytes !== undefined && allowedBytes && allowedBytes > 0)
+      ? Math.min(100, (usageBytes / allowedBytes) * 100)
+      : undefined;
 
     const enrichedSim: TruphoneSim = {
       ...sim,
-      // Données d'usage
-      dataUsageBytes: usage?.dataUsage,
-      dataAllowanceBytes,
-      dataUsagePercent: dataAllowanceBytes && usage?.dataUsage
-        ? Math.min(100, (usage.dataUsage / dataAllowanceBytes) * 100)
-        : undefined,
-      smsCount: usage?.smsCount,
-      callDurationMinutes: usage?.callDuration,
-      // Données détaillées du status (NOUVEAU !)
-      allowedData: detailedStatus?.allowed_data,
-      remainingData: detailedStatus?.remaining_data,
-      allowedTime: detailedStatus?.allowed_time,
-      remainingTime: detailedStatus?.remaining_time,
-      testStateStartDate: detailedStatus?.test_state_start_date,
+      // Données d'usage calculées depuis le status
+      dataUsageBytes: usageBytes,
+      dataAllowanceBytes: allowedBytes,
+      dataUsagePercent: usagePercent,
+      // Données détaillées du status
+      allowedData: detailedStatus.allowed_data,
+      remainingData: detailedStatus.remaining_data,
+      allowedTime: detailedStatus.allowed_time,
+      remainingTime: detailedStatus.remaining_time,
+      testStateStartDate: detailedStatus.test_state_start_date,
       lastUpdated: new Date().toISOString(),
     };
 
