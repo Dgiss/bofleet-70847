@@ -241,6 +241,77 @@ const normalizeTruphoneStatus = (apiStatus: string | undefined): string => {
   return normalizedStatus;
 };
 
+/**
+ * Envoie un SMS à une SIM Truphone pour tester si elle répond
+ * @param iccid - L'ICCID de la SIM
+ * @param message - Le message à envoyer (par défaut: "Test de connectivité - répondez OK")
+ * @returns Le statut de l'envoi et le MSISDN utilisé
+ */
+export const sendTestSmsToTruphoneSim = async (
+  iccid: string,
+  message: string = "Test de connectivité - répondez OK"
+): Promise<{ success: boolean; msisdn?: string; messageId?: string; error?: string }> => {
+  try {
+    const headers = await getHeaders();
+
+    // 1. Récupérer d'abord le MSISDN de la SIM
+    console.log(`📱 Récupération du MSISDN pour ICCID: ${iccid}`);
+    const simResponse = await axios.get(`${BASE_URL}/v2.2/sims/${iccid}`, {
+      headers,
+    });
+
+    const msisdn = simResponse.data.msisdn || simResponse.data.primaryMsisdn;
+
+    if (!msisdn) {
+      console.error(`❌ Aucun MSISDN trouvé pour l'ICCID ${iccid}`);
+      return {
+        success: false,
+        error: "Aucun numéro MSISDN associé à cette SIM"
+      };
+    }
+
+    console.log(`📞 MSISDN trouvé: ${msisdn}`);
+
+    // 2. Envoyer le SMS au MSISDN
+    console.log(`📤 Envoi SMS à ${msisdn}: "${message}"`);
+    const smsResponse = await axios.post(
+      `${BASE_URL}/v2.2/sms`,
+      {
+        to: msisdn,
+        message: message,
+      },
+      { headers }
+    );
+
+    const messageId = smsResponse.data?.messageId || smsResponse.data?.id || "N/A";
+
+    console.log(`✅ SMS envoyé avec succès! Message ID: ${messageId}`);
+
+    return {
+      success: true,
+      msisdn: msisdn,
+      messageId: messageId,
+    };
+
+  } catch (error: any) {
+    console.error(`❌ Erreur lors de l'envoi du SMS de test:`, error);
+
+    let errorMessage = "Erreur inconnue";
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+};
+
 export const getTruphoneSimStatus = async (iccid: string): Promise<TruphoneSim | null> => {
   try {
     const headers = await getHeaders();
