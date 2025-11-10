@@ -23,6 +23,8 @@ type Company @model
     creationDate: String
     subscriptionDate: String
     keyedStart: Boolean
+    # Flespi Integration
+    flespiAssetId: Int
     # Relationships
     users: [User] @hasMany (indexName: "usersByCompany", fields: ["id"])
     vehicles: [Vehicle] @hasMany (indexName: "vehiclesByCompany", fields: ["id"])
@@ -98,6 +100,8 @@ type Driver @model
     cdc: String
     pdm: String
     nni: String
+    # Flespi Integration
+    flespiAssetId: Int
     # Relationships
     companyDriversId: ID! @index(name: "driversByCompany")
     company: Company! @belongsTo (fields: ["companyDriversId"])
@@ -204,6 +208,8 @@ type Vehicle @model
     canMileage: String
     # Device association via IMEI field (direct association)
     vehicleDeviceImei: String
+    # Flespi Integration
+    flespiAssetId: Int
     # Relationships
     companyVehiclesId: ID! @index(name: "vehiclesByCompany")
     company: Company! @belongsTo (fields: ["companyVehiclesId"])
@@ -510,6 +516,7 @@ type Mutation {
   executeCustomAction(operation:CustomActionOperation!, request: AWSJSON!): CustomActionResponse @function(name: "FleetWatcherCustomActions-${env}")
   executeMaintenanceAction( action: MaintenanceAction! maintenanceId: ID! input: AWSJSON ): MaintenanceResponse @function(name: "FleetWatcherMaintenanceProcessor-${env}")
   updateUserPassword( userPoolId: String! username: String! newPassword: String! ): UpdatePasswordResponse @function(name: "FleetWatcherUpdateUserPassword-${env}")
+  manageFlespiAsset( action: FlespiAssetAction! input: AWSJSON! ): FlespiAssetResponse @function(name: "FleetWatcherFlespiAssets-${env}")
 }
 
 type LabelsCollection @model
@@ -552,6 +559,23 @@ type UpdatePasswordResponse {
 type MaintenanceResponse {
   status: String!
   message: String!
+}
+
+# Flespi Assets Types
+type FlespiAssetResponse {
+  success: Boolean!
+  message: String!
+  assetId: Int
+  intervalId: Int
+  data: AWSJSON
+}
+
+enum FlespiAssetAction {
+  sync_client_asset
+  sync_vehicle_asset
+  sync_driver_asset
+  create_device_interval
+  close_device_interval
 }
 
 type ActivityReport {
