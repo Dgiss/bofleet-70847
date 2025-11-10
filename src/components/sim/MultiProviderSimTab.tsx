@@ -436,11 +436,11 @@ export function MultiProviderSimTab() {
     if (searchValue) {
       const search = searchValue.toLowerCase();
       const matchesSearch =
-        (sim.msisdn && sim.msisdn.toLowerCase().includes(search)) ||
-        (sim.iccid && sim.iccid.toLowerCase().includes(search)) ||
-        (sim.provider && sim.provider.toLowerCase().includes(search)) ||
-        (sim.name && sim.name.toLowerCase().includes(search)) ||
-        (sim.label && sim.label.toLowerCase().includes(search));
+        (sim.msisdn && String(sim.msisdn).toLowerCase().includes(search)) ||
+        (sim.iccid && String(sim.iccid).toLowerCase().includes(search)) ||
+        (sim.provider && String(sim.provider).toLowerCase().includes(search)) ||
+        (sim.name && String(sim.name).toLowerCase().includes(search)) ||
+        (sim.label && String(sim.label).toLowerCase().includes(search));
       if (!matchesSearch) return false;
     }
 
