@@ -753,6 +753,14 @@ export const enrichTruphoneSimsWithUsage = async (
  * @returns Liste des plans tarifaires disponibles (ou vide si non accessible)
  */
 export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
+  // L'endpoint /rate_plan/ n'est PAS une API REST - c'est une interface web
+  // Il redirige toujours vers la page de login (CORS error)
+  // On skip cet appel et on utilise directement la détection automatique
+  console.log("⚠️ Truphone: Skip de l'endpoint /rate_plan (interface web, non API REST)");
+  console.log("🔍 Truphone: Utilisation de la détection automatique depuis les SIMs...");
+  return [];
+
+  /* ANCIEN CODE - causait erreur CORS
   try {
     const headers = await getHeaders();
     console.log("Truphone: Récupération des plans tarifaires via /api/rate_plan/...");
@@ -812,6 +820,7 @@ export const getTruphoneRatePlans = async (): Promise<TruphoneRatePlan[]> => {
     // Ne pas throw, retourner vide pour permettre la détection automatique
     return [];
   }
+  */
 };
 
 /**
