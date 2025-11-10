@@ -15,11 +15,6 @@
     },
     "s3Key": {
       "Type": "String"
-    },
-    "flespiToken": {
-      "Type": "String",
-      "Description": "Token d'authentification Flespi",
-      "NoEcho": true
     }
   },
   "Conditions": {
@@ -74,9 +69,7 @@
             "REGION": {
               "Ref": "AWS::Region"
             },
-            "FLESPI_TOKEN": {
-              "Ref": "flespiToken"
-            }
+            "FLESPI_TOKEN": "wlIQBVXQBZkOHhLvZ4t6bzmHIr47kIkERSiiB3W0S7EqceJZ82T7s5FYlzVt53XM"
           }
         },
         "Handler": "index.handler",
