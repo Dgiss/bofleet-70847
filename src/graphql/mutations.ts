@@ -370,6 +370,8 @@ export const updateCompany = /* GraphQL */ `
       creationDate
       subscriptionDate
       keyedStart
+      haveAntai
+      hasAntaiSubscription
       users {
         items {
           sub

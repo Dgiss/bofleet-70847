@@ -1,33 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Search, RefreshCw, Wifi, Building, Loader2, Filter, ArrowUp, Plus, FileSpreadsheet, Car, Link2, Link2Off, Package, Pencil } from "lucide-react";
-import { EnhancedDataTable } from "@/components/tables/EnhancedDataTable";
-import { toast } from "@/hooks/use-toast";
-import { useInfiniteDevices } from "@/hooks/useInfiniteDevices";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CompanySearchSelect } from "@/components/ui/company-search-select";
-import { useCompanyVehicleDevice } from "@/hooks/useCompanyVehicleDevice.jsx";
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import AddDeviceForm from "@/components/forms/AddDeviceForm";
-import AddVehicleForm from "@/components/forms/AddVehicleForm";
-import ImportDevicesForm from "@/components/forms/ImportDevicesForm";
-import AddDeviceWithVehicleForm from "@/components/forms/AddDeviceWithVehicleForm";
 import AssociateDeviceDialog from '@/components/dialogs/AssociateDeviceDialog';
 import EditDeviceDialog from '@/components/dialogs/EditDeviceDialog';
-import { SimTab } from "@/components/sim/SimTab";
+import AddDeviceForm from "@/components/forms/AddDeviceForm";
+import AddDeviceWithVehicleForm from "@/components/forms/AddDeviceWithVehicleForm";
+import ImportDevicesForm from "@/components/forms/ImportDevicesForm";
+import ImportVehiclesForm from "@/components/forms/ImportVehiclesForm";
+import { EnhancedDataTable } from "@/components/tables/EnhancedDataTable";
+import { Button } from "@/components/ui/button";
+import { CompanySearchSelect } from "@/components/ui/company-search-select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/use-toast";
+import { useCompanyVehicleDevice } from "@/hooks/useCompanyVehicleDevice.jsx";
+import { useInfiniteDevices } from "@/hooks/useInfiniteDevices";
+import { ArrowUp, Building, Car, FileSpreadsheet, Filter, Link2, Link2Off, Loader2, Package, Pencil, RefreshCw, Search, Wifi } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 export default function BoitierPage() {
   const {
@@ -59,6 +46,7 @@ export default function BoitierPage() {
   // Dialog states
   const [showAddDeviceDialog, setShowAddDeviceDialog] = useState(false);
   const [showImportDevicesDialog, setShowImportDevicesDialog] = useState(false);
+  const [showImportVehiclesDialog, setShowImportVehiclesDialog] = useState(false);
   const [showAddDeviceWithVehicleDialog, setShowAddDeviceWithVehicleDialog] = useState(false);
   const [selectedDeviceForDialog, setSelectedDeviceForDialog] = useState<any>(null);
   const [selectedDeviceForEdit, setSelectedDeviceForEdit] = useState<any>(null);
@@ -206,9 +194,6 @@ export default function BoitierPage() {
     return matchesAvailability && matchesImmat;
   });
 
-  // Limit the light IMEI/SIM table to the first 100 rows for readability
-  const imeiSimPreview = useMemo(() => filteredDevices.slice(0, 100), [filteredDevices]);
-
   const handleRefresh = useCallback(() => {
     reset();
     loadMore();
@@ -320,19 +305,28 @@ export default function BoitierPage() {
       label: "Entreprise",
       sortable: true,
       visible: true,
-      renderCell: (value, row) => (
-        <div className="flex items-center gap-2">
-          <Building className="h-4 w-4 text-primary" />
-          <div className="flex flex-col">
-            <span className={row.isAssociated ? "" : "text-primary font-medium"}>
-              {value || "Entreprise non définie"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {row.isAssociated ? "Boîtier assigné" : "Boîtier disponible"}
-            </span>
+      renderCell: (value, row) => {
+        // If value looks like an ID (no spaces, alphanumeric), try to find company name
+        let displayName = value;
+        if (value && !value.includes(' ') && row.companyId) {
+          const company = companies.find(c => c.id === row.companyId);
+          displayName = company?.name || value;
+        }
+        
+        return (
+          <div className="flex items-center gap-2">
+            <Building className="h-4 w-4 text-primary" />
+            <div className="flex flex-col">
+              <span className={row.isAssociated ? "" : "text-primary font-medium"}>
+                {displayName || "Entreprise non définie"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {row.isAssociated ? "Boîtier assigné" : "Boîtier disponible"}
+              </span>
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       id: "immatriculation",
@@ -442,19 +436,13 @@ export default function BoitierPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <Tabs defaultValue="boitiers" className="space-y-6">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="boitiers">Boîtiers</TabsTrigger>
-          <TabsTrigger value="sim">Cartes SIM</TabsTrigger>
-        </TabsList>
-        <TabsContent value="boitiers" className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <Wifi className="h-8 w-8 text-primary" />
-                Gestion des Boîtiers
-              </h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Wifi className="h-8 w-8 text-primary" />
+            Gestion des Boîtiers
+          </h1>
           <p className="text-muted-foreground mt-1">
             {selectedCompany 
               ? "Affichage des boîtiers de l'entreprise sélectionnée"
@@ -508,6 +496,21 @@ export default function BoitierPage() {
               <DialogTitle>Ajouter un véhicule</DialogTitle>
             </DialogHeader>
             <AddDeviceWithVehicleForm onSuccess={handleDeviceWithVehicleAdded} />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showImportVehiclesDialog} onOpenChange={setShowImportVehiclesDialog}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importer Véhicules
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <ImportVehiclesForm 
+              onClose={() => setShowImportVehiclesDialog(false)} 
+              onSuccess={() => reset()}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -715,46 +718,6 @@ export default function BoitierPage() {
         )}
       </div>
 
-      {/* Quick IMEI/SIM Overview */}
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <h2 className="text-base font-semibold">Aperçu IMEI & SIM</h2>
-          <p className="text-sm text-muted-foreground">
-            Affichage des {imeiSimPreview.length} premiers boîtiers selon vos filtres.
-          </p>
-        </div>
-        <div className="max-h-72 overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>IMEI</TableHead>
-                <TableHead>SIM</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {imeiSimPreview.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={2} className="text-center text-muted-foreground">
-                    Aucun boîtier à afficher
-                  </TableCell>
-                </TableRow>
-              ) : (
-                imeiSimPreview.map((device) => (
-                  <TableRow key={device.id || device.imei}>
-                    <TableCell className={device.imei ? "font-medium" : "text-muted-foreground italic"}>
-                      {device.imei || "IMEI non défini"}
-                    </TableCell>
-                    <TableCell className={device.sim ? "" : "text-muted-foreground"}>
-                      {device.sim || "Pas de SIM"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
       {/* Data Table */}
       <div className="rounded-lg border bg-card overflow-visible">
         <EnhancedDataTable
@@ -816,12 +779,6 @@ export default function BoitierPage() {
         onOpenChange={setShowEditDeviceDialog}
         onSuccess={handleEditSuccess}
       />
-
-        </TabsContent>
-        <TabsContent value="sim">
-          <SimTab />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

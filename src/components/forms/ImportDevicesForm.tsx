@@ -1,17 +1,17 @@
 
-import React, { useState, useEffect } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { X, Upload, Eye, EyeOff, FileSpreadsheet, AlertCircle, Package, PackageCheck } from "lucide-react";
 import { CompanySearchSelect } from "@/components/ui/company-search-select";
 import { DialogClose, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { createDeviceSimple } from "@/services/SimpleDeviceService";
+import { AlertCircle, Eye, EyeOff, FileSpreadsheet, Package, PackageCheck, Upload, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import * as XLSX from 'xlsx';
 
 type DeviceData = {

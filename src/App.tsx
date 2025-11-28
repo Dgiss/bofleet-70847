@@ -1,25 +1,24 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
-import Index from "./pages/Index";
-import LoginPage from "./pages/LoginPage";
-import EntreprisesPage from "./pages/EntreprisesPage";
-import CompanyManagementPage from "./pages/CompanyManagementPage";
-import VehiclesDevicesPage from "./pages/VehiclesDevicesPage";
-import SimCardsPage from "./pages/SimCardsPage";
-import FotaWebPage from "./pages/FotaWebPage";
-import BoitierPage from "./pages/BoitierPage";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ApiDiagnosticPage from "./pages/ApiDiagnosticPage";
-import PhenixTestPage from "./pages/PhenixTestPage";
-import TruphoneTestPage from "./pages/TruphoneTestPage";
-import RechargeTestPage from "./pages/RechargeTestPage";
+import BoitierPage from "./pages/BoitierPage";
+import CompanyManagementPage from "./pages/CompanyManagementPage";
+import EntreprisesPage from "./pages/EntreprisesPage";
+import FotaWebPage from "./pages/FotaWebPage";
+import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
+import PhenixTestPage from "./pages/PhenixTestPage";
+import RechargeTestPage from "./pages/RechargeTestPage";
+import SimCardsPage from "./pages/SimCardsPage";
+import TruphoneTestPage from "./pages/TruphoneTestPage";
+import VehiclesDevicesPage from "./pages/VehiclesDevicesPage";
 
 const queryClient = new QueryClient();
 

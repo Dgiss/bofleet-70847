@@ -236,7 +236,8 @@ const normalizeTruphoneStatus = (apiStatus: string | undefined): string => {
   };
 
   const normalizedStatus = statusMap[status] || status;
-  console.log(`Truphone: Statut normalisé: "${apiStatus}" → "${normalizedStatus}"`);
+  // Désactivé pour performance - génère trop de logs
+  // console.log(`Truphone: Statut normalisé: "${apiStatus}" → "${normalizedStatus}"`);
 
   return normalizedStatus;
 };

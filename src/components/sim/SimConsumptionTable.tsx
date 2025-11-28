@@ -1,6 +1,3 @@
-import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,21 +14,20 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Filter, Calendar, BarChart, Loader2 } from "lucide-react";
 import {
-  listThingsMobileSims,
-  type ThingsMobileSim
-} from "@/services/ThingsMobileService";
-import {
-  listPhenixSims,
   getPhenixConsumptionHistory,
-  type PhenixSim
+  listPhenixSims
 } from "@/services/PhenixService";
 import {
-  listTruphoneSims,
+  listThingsMobileSims
+} from "@/services/ThingsMobileService";
+import {
   getTruphoneUsage,
-  type TruphoneSim
+  listTruphoneSims
 } from "@/services/TruphoneService";
+import { useQuery } from "@tanstack/react-query";
+import { BarChart, Calendar, Filter, Loader2 } from "lucide-react";
+import React, { useState } from "react";
 
 // Types de cartes SIM
 type SimType = "Truphone" | "Things Mobile" | "Phenix" | "All";

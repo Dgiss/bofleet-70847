@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
 import { getLazyClient, waitForAmplifyConfig, withCredentialRetry } from '@/config/aws-config.js';
+import { useCallback, useState } from 'react';
 import * as queries from '../graphql/queries';
 
 const client = getLazyClient();

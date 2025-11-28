@@ -1,5 +1,4 @@
 
-import React from "react";
 import { MultiProviderSimTab } from "@/components/sim/MultiProviderSimTab";
 
 export default function SimCardsPage() {

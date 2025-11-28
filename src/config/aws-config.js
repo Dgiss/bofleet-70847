@@ -1,7 +1,7 @@
 
 import { Amplify } from 'aws-amplify';
-import { getCurrentUser } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/api';
+import { getCurrentUser } from 'aws-amplify/auth';
 
 // Configuration pour AWS Amplify v6
 const awsConfig = {
@@ -63,26 +63,49 @@ export const configureAmplify = () => {
   configurationPromise = new Promise((resolve, reject) => {
     try {
       console.log('Configuration d\'Amplify en cours...');
-      
+
       if (isConfigured) {
         console.log('Amplify déjà configuré');
         resolve(true);
         return;
       }
-      
+
       // Configuration synchrone d'Amplify v6
       Amplify.configure(awsConfig, { ssr: false });
-      
+
+      // Attendre un cycle pour que la configuration soit appliquée
+      setTimeout(() => {
+        try {
+          // Vérifier que la configuration est bien appliquée
+          const config = Amplify.getConfig();
+          console.log('Configuration récupérée:', config);
+
+          if (!config?.Auth?.Cognito) {
+            throw new Error('Configuration Amplify Auth incomplète');
+          }
+
+          isConfigured = true;
+          console.log('Amplify v6 configuré avec succès');
+          console.log('UserPoolId:', config.Auth.Cognito.userPoolId);
+          console.log('UserPoolClientId:', config.Auth.Cognito.userPoolClientId);
+          resolve(true);
+        } catch (error) {
+          console.error('Erreur lors de la vérification de la configuration:', error);
+          isConfigured = false;
+          configurationPromise = null;
+          reject(error);
+        }
+      }, 100);
       // Vérifier que la configuration est bien appliquée
       const config = Amplify.getConfig();
       if (!config?.Auth?.Cognito) {
         throw new Error('Configuration Amplify Auth incomplète');
       }
-      
+
       isConfigured = true;
       console.log('Amplify v6 configuré avec succès');
       resolve(true);
-      
+
     } catch (error) {
       console.error('Erreur lors de la configuration d\'Amplify:', error);
       isConfigured = false;
@@ -116,7 +139,7 @@ export const waitForAmplifyConfig = async () => {
       configurationPromise = null;
     }
   }
-  
+
   if (configurationPromise) {
     try {
       return await configurationPromise;
@@ -128,7 +151,7 @@ export const waitForAmplifyConfig = async () => {
       throw error;
     }
   }
-  
+
   return await configureAmplify();
 };
 
@@ -153,7 +176,7 @@ export const withCredentialRetry = async (operation, maxRetries = 2) => {
       if (!hasCredentials) {
         throw new Error('Utilisateur non authentifié - veuillez vous reconnecter');
       }
-      
+
       return await operation();
     } catch (error) {
       // Log the original error for debugging before transforming it
@@ -164,9 +187,9 @@ export const withCredentialRetry = async (operation, maxRetries = 2) => {
         errors: error.errors,
         stack: error.stack
       });
-      
+
       console.warn(`Tentative ${attempt}/${maxRetries} échouée:`, error.message);
-      
+
       if (error.message?.includes('NoCredentials') || error.message?.includes('No credentials')) {
         if (attempt < maxRetries) {
           console.log('Nouvelle tentative avec attente...');
@@ -175,7 +198,7 @@ export const withCredentialRetry = async (operation, maxRetries = 2) => {
         }
         throw new Error('Erreur d\'authentification - veuillez vous reconnecter');
       }
-      
+
       // For GraphQL errors, preserve more detail
       if (error.errors && Array.isArray(error.errors)) {
         const graphqlError = new Error(`GraphQL Error: ${error.errors.map(e => e.message).join(', ')}`);
@@ -183,7 +206,7 @@ export const withCredentialRetry = async (operation, maxRetries = 2) => {
         graphqlError.errors = error.errors;
         throw graphqlError;
       }
-      
+
       // Pour les autres erreurs, ne pas retry mais préserver l'erreur originale
       throw error;
     }

@@ -1,6 +1,6 @@
 
-import { signIn, signOut, getCurrentUser } from 'aws-amplify/auth';
 import { isAmplifyConfigured, waitForAmplifyConfig } from '@/config/aws-config.js';
+import { getCurrentUser, signIn, signOut } from 'aws-amplify/auth';
 
 // Fonction pour forcer la déconnexion complète
 export const forceSignOut = async () => {
@@ -22,13 +22,13 @@ export const forceSignOut = async () => {
 export const signInUser = async (username, password) => {
   try {
     console.log('Tentative de connexion pour:', username);
-    
+
     // Vérifier que Amplify est configuré
     if (!isAmplifyConfigured()) {
       console.log('Amplify non configuré, attente de la configuration...');
       await waitForAmplifyConfig();
     }
-    
+
     // Vérifier d'abord si l'utilisateur est déjà connecté
     try {
       const currentUser = await getCurrentUser();
@@ -41,24 +41,24 @@ export const signInUser = async (username, password) => {
     }
 
     const { isSignedIn, nextStep } = await signIn({ username, password });
-    
+
     if (nextStep.signInStep === 'DONE') {
       // Créer un cookie d'expiration de 2 heures
       const expirationDate = new Date();
       expirationDate.setHours(expirationDate.getHours() + 2);
-      
+
       // Stocker dans localStorage pour la session
       localStorage.setItem('alreadyLogged', 'true');
       localStorage.setItem('loginExpiration', expirationDate.getTime().toString());
-      
+
       console.log('Connexion réussie pour:', username);
       return { success: true, user: isSignedIn };
     }
-    
+
     return { success: false, error: 'Étape de connexion non terminée' };
   } catch (error) {
     console.error('Erreur de connexion:', error);
-    
+
     // Gérer spécifiquement l'erreur de configuration
     if (error.message && error.message.includes('Auth UserPool not configured')) {
       console.log('Erreur de configuration détectée, nouvelle tentative...');
@@ -75,13 +75,13 @@ export const signInUser = async (username, password) => {
         }
       } catch (retryError) {
         console.error('Échec de la nouvelle tentative:', retryError);
-        return { 
-          success: false, 
-          error: 'Problème de configuration. Veuillez rafraîchir la page et réessayer.' 
+        return {
+          success: false,
+          error: 'Problème de configuration. Veuillez rafraîchir la page et réessayer.'
         };
       }
     }
-    
+
     // Gérer spécifiquement l'erreur "already signed in"
     if (error.message && error.message.includes('already signed in')) {
       console.log('Erreur "already signed in" détectée, tentative de récupération...');
@@ -98,16 +98,16 @@ export const signInUser = async (username, password) => {
         }
       } catch (retryError) {
         console.error('Échec de la récupération après "already signed in":', retryError);
-        return { 
-          success: false, 
-          error: 'Session corrompue. Veuillez rafraîchir la page et réessayer.' 
+        return {
+          success: false,
+          error: 'Session corrompue. Veuillez rafraîchir la page et réessayer.'
         };
       }
     }
-    
-    return { 
-      success: false, 
-      error: error.message || 'Erreur de connexion' 
+
+    return {
+      success: false,
+      error: error.message || 'Erreur de connexion'
     };
   }
 };
@@ -132,16 +132,16 @@ export const signOutUser = async () => {
 export const checkAuthStatus = async () => {
   try {
     console.log('Vérification du statut d\'authentification...');
-    
+
     // Attendre que Amplify soit configuré
     await waitForAmplifyConfig();
-    
+
     const alreadyLogged = localStorage.getItem('alreadyLogged');
     const loginExpiration = localStorage.getItem('loginExpiration');
-    
+
     console.log('localStorage - alreadyLogged:', alreadyLogged);
     console.log('localStorage - loginExpiration:', loginExpiration);
-    
+
     // Vérifier l'expiration du localStorage
     if (loginExpiration) {
       const now = new Date().getTime();
@@ -157,7 +157,7 @@ export const checkAuthStatus = async () => {
         return { isAuthenticated: false };
       }
     }
-    
+
     // Vérifier l'état Cognito
     let cognitoUser = null;
     try {
@@ -166,7 +166,7 @@ export const checkAuthStatus = async () => {
     } catch (error) {
       console.log('Aucun utilisateur Cognito actif');
     }
-    
+
     // Synchroniser les états
     if (cognitoUser && !alreadyLogged) {
       console.log('Synchronisation: utilisateur Cognito sans localStorage');
@@ -176,22 +176,22 @@ export const checkAuthStatus = async () => {
       localStorage.setItem('loginExpiration', expirationDate.getTime().toString());
       return { isAuthenticated: true, user: cognitoUser };
     }
-    
+
     if (!cognitoUser && alreadyLogged) {
       console.log('Synchronisation: localStorage sans utilisateur Cognito, nettoyage...');
       localStorage.removeItem('alreadyLogged');
       localStorage.removeItem('loginExpiration');
       return { isAuthenticated: false };
     }
-    
+
     if (cognitoUser && alreadyLogged) {
       console.log('Sessions synchronisées, utilisateur authentifié');
       return { isAuthenticated: true, user: cognitoUser };
     }
-    
+
     console.log('Aucune session active');
     return { isAuthenticated: false };
-    
+
   } catch (error) {
     console.error('Erreur de vérification du statut:', error);
     localStorage.removeItem('alreadyLogged');

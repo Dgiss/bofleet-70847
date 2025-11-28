@@ -1,14 +1,14 @@
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, User, Lock, RefreshCw } from 'lucide-react';
-import { signInUser } from '@/services/AuthService';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { signInUser } from '@/services/AuthService';
+import { Eye, EyeOff, Lock, RefreshCw, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 
 interface LoginFormData {
   username: string;
@@ -74,6 +74,7 @@ export const LoginForm: React.FC = () => {
         });
         
         
+        navigate('/gestion-entreprises');
         navigate('/entreprises');
       } else {
         console.error('LoginForm: Échec de connexion:', result.error);

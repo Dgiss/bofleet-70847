@@ -1,6 +1,15 @@
 /* eslint-disable */
 // this is an auto generated file. This will be overwritten
 
+export const antaiQuery = /* GraphQL */ `
+  query AntaiQuery($request: AWSJSON!) {
+    antaiQuery(request: $request) {
+      success
+      data
+    }
+  }
+`;
+
 export const getTrajectoryHistory = /* GraphQL */ `
   query GetTrajectoryHistory(
     $driverSub: String

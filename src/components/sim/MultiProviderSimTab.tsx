@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,9 @@ import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
-import { listAllThingsMobileSims } from "@/services/ThingsMobileService";
+import { listAllThingsMobileSims, getThingsMobileSimStatus } from "@/services/ThingsMobileService";
 import { listPhenixSims } from "@/services/PhenixService";
-import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans } from "@/services/TruphoneService";
+import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans, getTruphoneSimStatus } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
 import {
   Select,
@@ -165,6 +165,9 @@ export function MultiProviderSimTab() {
   const [allSims, setAllSims] = useState<UnifiedSim[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [apiSearchResults, setApiSearchResults] = useState<UnifiedSim[]>([]);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
   const loadSimsProgressively = useCallback(async () => {
     setIsLoading(true);
@@ -238,59 +241,46 @@ export function MultiProviderSimTab() {
         });
       }
 
-      // 3. Truphone EN DERNIER (le plus lent) - CHARGEMENT PAGE PAR PAGE
+      // 3. Truphone EN DERNIER (le plus lent) - CHARGEMENT DE LA PREMIÈRE PAGE SEULEMENT
       try {
-        console.log("📱 Chargement Truphone page par page...");
-        let truphonePage = 1;
-        let hasMoreTruphone = true;
-        let totalTruphone = 0;
+        console.log("📱 Chargement Truphone (première page uniquement pour affichage rapide)...");
 
-        while (hasMoreTruphone) {
-          const pageResult = await listTruphoneSimsPaged(truphonePage, 500);
+        // Charger SEULEMENT la première page pour affichage rapide
+        const pageResult = await listTruphoneSimsPaged(1, 500);
 
-          if (pageResult.sims.length > 0) {
-            const truphoneUnified = pageResult.sims.map((sim) => ({
-              id: `truphone-${sim.iccid || sim.simId}`,
-              provider: "Truphone" as const,
-              msisdn: sim.msisdn || "—",
-              iccid: sim.iccid || "—",
-              status: sim.status || "unknown",
-              label: sim.label,
-              description: sim.description,
-              imei: sim.imei,
-              servicePack: sim.servicePack,
-              simType: sim.simType,
-              organizationName: sim.organizationName,
-              dataUsageBytes: undefined,
-              dataAllowanceBytes: undefined,
-              dataUsagePercent: undefined,
-              smsCount: undefined,
-              callDurationMinutes: undefined,
-              isLowData: false,
-              _truphoneSimRef: sim,
-            }));
+        if (pageResult.sims.length > 0) {
+          const truphoneUnified = pageResult.sims.map((sim) => ({
+            id: `truphone-${sim.iccid || sim.simId}`,
+            provider: "Truphone" as const,
+            msisdn: sim.msisdn || "—",
+            iccid: sim.iccid || "—",
+            status: sim.status || "unknown",
+            label: sim.label,
+            description: sim.description,
+            imei: sim.imei,
+            servicePack: sim.servicePack,
+            simType: sim.simType,
+            organizationName: sim.organizationName,
+            dataUsageBytes: undefined,
+            dataAllowanceBytes: undefined,
+            dataUsagePercent: undefined,
+            smsCount: undefined,
+            callDurationMinutes: undefined,
+            isLowData: false,
+            _truphoneSimRef: sim,
+          }));
 
-            setAllSims(prev => [...prev, ...truphoneUnified]); // Afficher IMMÉDIATEMENT chaque page
-            totalTruphone += truphoneUnified.length;
-            console.log(`✅ Truphone page ${truphonePage}: ${truphoneUnified.length} SIMs affichées (total: ${totalTruphone})`);
-          }
+          setAllSims(prev => [...prev, ...truphoneUnified]); // Afficher IMMÉDIATEMENT
+          console.log(`✅ Truphone: ${truphoneUnified.length} SIMs affichées (première page)`);
 
-          hasMoreTruphone = pageResult.hasMore;
-          truphonePage++;
-
-          // Protection contre boucle infinie
-          if (truphonePage > 50) {
-            console.warn("⚠️ Truphone: Limite de 50 pages atteinte");
-            break;
-          }
+          newStatuses.push({
+            provider: "Truphone",
+            status: "success",
+            count: truphoneUnified.length,
+          });
         }
 
-        newStatuses.push({
-          provider: "Truphone",
-          status: "success",
-          count: totalTruphone,
-        });
-        console.log(`✅ Truphone: ${totalTruphone} SIMs au total (enrichissement progressif à venir)`);
+        console.log(`ℹ️ Truphone: Affichage rapide activé - Seule la première page est chargée`);
       } catch (err: any) {
         console.error("❌ Truphone error:", err);
         newStatuses.push({
@@ -322,6 +312,375 @@ export function MultiProviderSimTab() {
   };
 
   const dataUpdatedAt = Date.now(); // Simuler pour compatibilité
+
+  // Recherche API OPTIMISÉE avec appels directs (pas de pagination)
+  const searchSimByApi = useCallback(async (query: string) => {
+    if (!query || query.length < 3) {
+      setApiSearchResults([]);
+      return;
+    }
+
+    // Annuler la recherche précédente si elle est en cours
+    if (searchAbortControllerRef.current) {
+      console.log("🚫 Annulation de la recherche API précédente");
+      searchAbortControllerRef.current.abort();
+    }
+
+    // Créer un nouveau controller pour cette recherche
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
+    setIsSearching(true);
+    console.log(`🔍 Recherche API OPTIMISÉE pour: "${query}"`);
+
+    try {
+      const results: UnifiedSim[] = [];
+
+      // Déterminer le type de recherche
+      // Note: Priorité IMEI > ICCID > MSISDN car ils peuvent se chevaucher en longueur
+      const looksLikeImei = /^\d{15}$/.test(query); // IMEI = exactement 15 chiffres
+      const looksLikeIccid = /^\d{13,20}$/.test(query) && !looksLikeImei; // ICCID = 13-20 chiffres (mais pas 15)
+      const looksLikeMsisdn = /^\d{10,12}$/.test(query); // MSISDN = 10-12 chiffres
+
+      // Vérifier si la recherche a été annulée
+      if (abortController.signal.aborted) {
+        console.log("🚫 Recherche annulée par l'utilisateur");
+        return;
+      }
+
+      // 1. Recherche directe Truphone par ICCID (ULTRA RAPIDE - 1 seul appel API)
+      if (looksLikeIccid) {
+        let truphoneFound = false;
+
+        try {
+          console.log(`🎯 Recherche directe Truphone par ICCID: ${query}`);
+          const startTime = Date.now();
+
+          const truphoneSim = await getTruphoneSimStatus(query);
+
+          const duration = Date.now() - startTime;
+          console.log(`⚡ Recherche Truphone terminée en ${duration}ms`);
+
+          if (truphoneSim) {
+            const unified: UnifiedSim = {
+              id: `truphone-api-${truphoneSim.iccid}`,
+              provider: "Truphone" as const,
+              msisdn: truphoneSim.msisdn || "—",
+              iccid: truphoneSim.iccid || "—",
+              status: truphoneSim.status || "unknown",
+              imei: truphoneSim.imei,
+              servicePack: truphoneSim.servicePack,
+              simType: truphoneSim.simType,
+              organizationName: truphoneSim.organizationName,
+              dataUsageBytes: undefined,
+              dataAllowanceBytes: undefined,
+              dataUsagePercent: undefined,
+              smsCount: undefined,
+              callDurationMinutes: undefined,
+              isLowData: false,
+              _truphoneSimRef: truphoneSim,
+            };
+
+            results.push(unified);
+            truphoneFound = true;
+            console.log(`✅ SIM Truphone trouvée via API directe:`, unified);
+          } else {
+            console.log(`⚠️ Aucune SIM Truphone trouvée pour ICCID exact: ${query}`);
+          }
+        } catch (err: any) {
+          const statusCode = err.response?.status || 'unknown';
+          console.warn(`⚠️ Recherche directe Truphone échouée (HTTP ${statusCode}), tentative avec recherche partielle...`);
+          console.log(`   Raison: ${err.message}`);
+        }
+
+        // Fallback: Si l'API directe échoue (404 ou autre), chercher avec contains dans la pagination
+        if (!truphoneFound) {
+          console.log(`🔍 Fallback Truphone: truphoneFound=${truphoneFound}, lancement de la recherche partielle...`);
+
+          try {
+            console.log(`📄 Recherche partielle Truphone pour "${query}" dans toutes les pages...`);
+            let page = 1;
+            let foundCount = 0;
+            let totalScanned = 0;
+            const maxPages = 5; // Limiter à 5 pages = 2500 SIMs pour recherche partielle
+
+            while (page <= maxPages && foundCount === 0) {
+              console.log(`   📄 Scan page ${page}/${maxPages}...`);
+              const pageResult = await listTruphoneSimsPaged(page, 500);
+
+              if (pageResult.sims.length === 0) {
+                console.log(`   📄 Page ${page} vide, arrêt de la recherche`);
+                break;
+              }
+
+              totalScanned += pageResult.sims.length;
+              console.log(`   📄 Page ${page}: ${pageResult.sims.length} SIMs récupérées (total scanné: ${totalScanned})`);
+
+              // Recherche avec contains (partielle) pour l'ICCID
+              const matched = pageResult.sims.filter(sim =>
+                sim.iccid && String(sim.iccid).includes(query)
+              );
+
+              if (matched.length > 0) {
+                console.log(`   🎯 Correspondance(s) trouvée(s)! ICCIDs: ${matched.map(s => s.iccid).join(', ')}`);
+
+                const truphoneUnified = matched.map((sim) => ({
+                  id: `truphone-api-${sim.iccid || sim.simId}`,
+                  provider: "Truphone" as const,
+                  msisdn: sim.msisdn || "—",
+                  iccid: sim.iccid || "—",
+                  status: sim.status || "unknown",
+                  label: sim.label,
+                  description: sim.description,
+                  imei: sim.imei,
+                  servicePack: sim.servicePack,
+                  simType: sim.simType,
+                  organizationName: sim.organizationName,
+                  dataUsageBytes: undefined,
+                  dataAllowanceBytes: undefined,
+                  dataUsagePercent: undefined,
+                  smsCount: undefined,
+                  callDurationMinutes: undefined,
+                  isLowData: false,
+                  _truphoneSimRef: sim,
+                }));
+
+                results.push(...truphoneUnified);
+                foundCount += truphoneUnified.length;
+                console.log(`✅ Trouvé ${truphoneUnified.length} SIM(s) Truphone via recherche partielle (page ${page}, ${totalScanned} SIMs scannées)`);
+                break;
+              }
+
+              if (!pageResult.hasMore || page >= pageResult.totalPages) {
+                console.log(`   📄 Dernière page atteinte (${page}/${pageResult.totalPages})`);
+                break;
+              }
+
+              page++;
+            }
+
+            if (foundCount === 0) {
+              console.log(`⚠️ Aucune SIM Truphone trouvée après avoir scanné ${totalScanned} SIMs sur ${page} page(s)`);
+              console.log(`💡 Astuce: Si vous cherchez un ICCID partiel (ex: ${query}), essayez avec l'ICCID complet du portail Truphone (ex: 89444${query})`);
+            }
+          } catch (fallbackErr) {
+            console.error("❌ Erreur fallback Truphone:", fallbackErr);
+          }
+        } else {
+          console.log(`✓ Truphone trouvée via API directe, pas besoin de fallback`);
+        }
+      }
+
+      // 2. Recherche directe Things Mobile par ICCID ou MSISDN (ULTRA RAPIDE - 1 seul appel API)
+      if (looksLikeIccid || looksLikeMsisdn) {
+        try {
+          const searchParam = looksLikeIccid ? 'ICCID' : 'MSISDN';
+          console.log(`🎯 Recherche directe Things Mobile par ${searchParam}: ${query}`);
+          const startTime = Date.now();
+
+          const tmSim = await getThingsMobileSimStatus(
+            looksLikeIccid ? { iccid: query } : { msisdn: query }
+          );
+
+          const duration = Date.now() - startTime;
+          console.log(`⚡ Recherche Things Mobile terminée en ${duration}ms`);
+
+          if (tmSim) {
+            const unified: UnifiedSim = {
+              id: `tm-api-${tmSim.iccid || tmSim.msisdn}`,
+              provider: "Things Mobile" as const,
+              msisdn: tmSim.msisdn || "—",
+              iccid: tmSim.iccid || "—",
+              status: tmSim.status || "unknown",
+              name: tmSim.name,
+              tag: tmSim.tag,
+              dataUsage: formatBytes(tmSim.monthlyTrafficBytes),
+              lastConnection: tmSim.lastConnectionDate,
+            };
+
+            results.push(unified);
+            console.log(`✅ SIM Things Mobile trouvée:`, unified);
+          } else {
+            console.log(`⚠️ Aucune SIM Things Mobile trouvée pour ${searchParam}: ${query}`);
+          }
+        } catch (err: any) {
+          console.warn("⚠️ Recherche directe Things Mobile échouée, tentative avec liste complète...");
+
+          // Fallback: Rechercher dans la liste complète Things Mobile
+          try {
+            const tmSims = await listAllThingsMobileSims();
+            const searchLower = query.toLowerCase();
+
+            const matched = tmSims.find(sim =>
+              (sim.iccid && String(sim.iccid).toLowerCase() === searchLower) ||
+              (sim.msisdn && String(sim.msisdn).toLowerCase() === searchLower)
+            );
+
+            if (matched) {
+              const unified: UnifiedSim = {
+                id: `tm-api-${matched.iccid || matched.msisdn}`,
+                provider: "Things Mobile" as const,
+                msisdn: matched.msisdn || "—",
+                iccid: matched.iccid || "—",
+                status: matched.status || "unknown",
+                name: matched.name,
+                tag: matched.tag,
+                dataUsage: formatBytes(matched.monthlyTrafficBytes),
+                lastConnection: matched.lastConnectionDate,
+              };
+
+              results.push(unified);
+              console.log(`✅ SIM Things Mobile trouvée via fallback:`, unified);
+            } else {
+              console.log(`⚠️ Aucune SIM Things Mobile trouvée (même via fallback)`);
+            }
+          } catch (fallbackErr) {
+            console.error("❌ Erreur fallback Things Mobile:", fallbackErr);
+          }
+        }
+      }
+
+      // 3. Pour les recherches IMEI (15 chiffres exactement), utiliser l'ancienne méthode de pagination
+      // car l'IMEI n'est pas la clé primaire de recherche
+      if (looksLikeImei && !looksLikeIccid) {
+        console.log(`🔍 Recherche par IMEI (pagination nécessaire): ${query}`);
+        try {
+          let page = 1;
+          let foundCount = 0;
+          const maxPages = 10; // Limiter à 10 pages = 5000 SIMs max
+
+          while (page <= maxPages && foundCount === 0) {
+            const pageResult = await listTruphoneSimsPaged(page, 500);
+
+            if (pageResult.sims.length === 0) break;
+
+            const matched = pageResult.sims.filter(sim =>
+              sim.imei && String(sim.imei) === query // Comparaison exacte pour IMEI
+            );
+
+            if (matched.length > 0) {
+              const truphoneUnified = matched.map((sim) => ({
+                id: `truphone-api-${sim.iccid || sim.simId}`,
+                provider: "Truphone" as const,
+                msisdn: sim.msisdn || "—",
+                iccid: sim.iccid || "—",
+                status: sim.status || "unknown",
+                label: sim.label,
+                description: sim.description,
+                imei: sim.imei,
+                servicePack: sim.servicePack,
+                simType: sim.simType,
+                organizationName: sim.organizationName,
+                dataUsageBytes: undefined,
+                dataAllowanceBytes: undefined,
+                dataUsagePercent: undefined,
+                smsCount: undefined,
+                callDurationMinutes: undefined,
+                isLowData: false,
+                _truphoneSimRef: sim,
+              }));
+
+              results.push(...truphoneUnified);
+              foundCount += truphoneUnified.length;
+              console.log(`✅ Trouvé ${truphoneUnified.length} SIM(s) Truphone avec IMEI ${query}`);
+              break; // Arrêter dès qu'on trouve
+            }
+
+            if (!pageResult.hasMore || page >= pageResult.totalPages) break;
+            page++;
+          }
+
+          console.log(`📊 Recherche IMEI: ${foundCount} résultat(s) sur ${page} page(s)`);
+        } catch (err) {
+          console.error("Erreur recherche IMEI Truphone:", err);
+        }
+      }
+
+      setApiSearchResults(results);
+
+      if (results.length > 0) {
+        toast({
+          description: `✅ ${results.length} résultat(s) trouvé(s) en ${looksLikeIccid ? '< 2 secondes' : 'quelques secondes'}`,
+          duration: 3000,
+        });
+      } else {
+        // Suggestion si la recherche échoue avec un ICCID court
+        const suggestionText = looksLikeIccid && query.length < 19
+          ? ` Essayez avec l'ICCID complet (19 chiffres) depuis le portail Truphone.`
+          : '';
+
+        toast({
+          variant: "destructive",
+          description: `❌ Aucun résultat trouvé pour "${query}".${suggestionText}`,
+          duration: 5000,
+        });
+      }
+    } catch (err) {
+      console.error("Erreur recherche API:", err);
+      toast({
+        variant: "destructive",
+        description: "Erreur lors de la recherche API",
+        duration: 3000,
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  }, [toast]);
+
+  // Debounce de la recherche API avec détection intelligente
+  useEffect(() => {
+    // Nettoyer les résultats API si la recherche est vide
+    if (!searchValue) {
+      setApiSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // Ne lancer la recherche API que si aucun résultat local n'est trouvé
+      const search = searchValue.toLowerCase();
+      const localResults = allSims.filter((sim) => {
+        return (
+          (sim.msisdn && String(sim.msisdn).toLowerCase().includes(search)) ||
+          (sim.iccid && String(sim.iccid).toLowerCase().includes(search)) ||
+          (sim.imei && String(sim.imei).toLowerCase().includes(search)) ||
+          (sim.provider && String(sim.provider).toLowerCase().includes(search)) ||
+          (sim.name && String(sim.name).toLowerCase().includes(search)) ||
+          (sim.label && String(sim.label).toLowerCase().includes(search))
+        );
+      });
+
+      console.log(`🔍 Recherche locale pour "${searchValue}": ${localResults.length} résultat(s) trouvé(s) dans ${allSims.length} SIMs`);
+
+      // Critères pour lancer la recherche API (OPTIMISÉE):
+      // 1. Aucun résultat local trouvé
+      // 2. Requête ressemble à:
+      //    - ICCID (13-20 chiffres) → recherche directe ultra-rapide
+      //    - MSISDN (10-12 chiffres) → recherche directe ultra-rapide
+      //    - IMEI (exactement 15 chiffres) → pagination nécessaire mais limitée
+      // Note: Priorité IMEI > ICCID > MSISDN
+      const looksLikeImei = /^\d{15}$/.test(searchValue);
+      const looksLikeIccid = /^\d{13,20}$/.test(searchValue) && !looksLikeImei;
+      const looksLikeMsisdn = /^\d{10,12}$/.test(searchValue);
+      const isValidSearchFormat = looksLikeIccid || looksLikeMsisdn || looksLikeImei;
+
+      if (localResults.length === 0 && isValidSearchFormat) {
+        const searchType = looksLikeIccid ? 'ICCID (recherche ultra-rapide)' :
+                          looksLikeMsisdn ? 'MSISDN (recherche ultra-rapide)' :
+                          'IMEI (recherche avec pagination)';
+        console.log(`🚀 Lancement recherche API pour ${searchType}: "${searchValue}"`);
+        searchSimByApi(searchValue);
+      } else {
+        setApiSearchResults([]);
+        if (localResults.length > 0) {
+          console.log(`✅ Résultats trouvés localement, pas besoin de recherche API`);
+        } else if (!isValidSearchFormat) {
+          console.log(`⚠️ Format invalide pour recherche API. Requis: ICCID (13-20 chiffres), MSISDN (10-12 chiffres) ou IMEI (15 chiffres)`);
+        }
+      }
+    }, 800); // Réduit à 800ms car la recherche directe est ultra-rapide maintenant
+
+    return () => clearTimeout(timer);
+  }, [searchValue, allSims, searchSimByApi]);
 
   // Enrichissement progressif des SIMs Truphone en arrière-plan
   useEffect(() => {
@@ -423,21 +782,33 @@ export function MultiProviderSimTab() {
       }
     };
 
-    // Démarrer l'enrichissement après un court délai pour laisser l'UI se charger
-    const timer = setTimeout(() => {
-      enrichTruphoneSims();
-    }, 1000);
-
-    return () => clearTimeout(timer);
+    // DÉSACTIVÉ : l'enrichissement automatique ralentit trop le chargement initial
+    // L'utilisateur peut utiliser le bouton "Actualiser" pour enrichir manuellement si besoin
+    // const timer = setTimeout(() => {
+    //   enrichTruphoneSims();
+    // }, 1000);
+    // return () => clearTimeout(timer);
   }, [dataUpdatedAt, isLoading]); // allSims et isEnriching exclus volontairement pour éviter les boucles
 
-  const filteredSims = allSims.filter((sim) => {
+  // Combiner les SIMs locales avec les résultats de recherche API
+  const combinedSims = useMemo(() => {
+    // Fusionner sans doublons (utiliser l'ID comme clé unique)
+    const simsMap = new Map<string, UnifiedSim>();
+
+    allSims.forEach(sim => simsMap.set(sim.id, sim));
+    apiSearchResults.forEach(sim => simsMap.set(sim.id, sim));
+
+    return Array.from(simsMap.values());
+  }, [allSims, apiSearchResults]);
+
+  const filteredSims = combinedSims.filter((sim) => {
     // Filtre de recherche texte
     if (searchValue) {
       const search = searchValue.toLowerCase();
       const matchesSearch =
         (sim.msisdn && String(sim.msisdn).toLowerCase().includes(search)) ||
         (sim.iccid && String(sim.iccid).toLowerCase().includes(search)) ||
+        (sim.imei && String(sim.imei).toLowerCase().includes(search)) ||
         (sim.provider && String(sim.provider).toLowerCase().includes(search)) ||
         (sim.name && String(sim.name).toLowerCase().includes(search)) ||
         (sim.label && String(sim.label).toLowerCase().includes(search));
@@ -666,14 +1037,14 @@ export function MultiProviderSimTab() {
   ];
 
   const stats = {
-    total: allSims.length,
-    thingsMobile: allSims.filter((s) => s.provider === "Things Mobile").length,
-    phenix: allSims.filter((s) => s.provider === "Phenix").length,
-    truphone: allSims.filter((s) => s.provider === "Truphone").length,
+    total: combinedSims.length,
+    thingsMobile: combinedSims.filter((s) => s.provider === "Things Mobile").length,
+    phenix: combinedSims.filter((s) => s.provider === "Phenix").length,
+    truphone: combinedSims.filter((s) => s.provider === "Truphone").length,
   };
 
   // Calculer les SIMs avec un niveau de data faible
-  const lowDataSims = allSims.filter(sim => sim.isLowData && sim.dataUsagePercent !== undefined);
+  const lowDataSims = combinedSims.filter(sim => sim.isLowData && sim.dataUsagePercent !== undefined);
   const criticalSims = lowDataSims.filter(sim => sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.DEPLETED);
   const warningSims = lowDataSims.filter(sim =>
     sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.WARNING &&
@@ -681,178 +1052,111 @@ export function MultiProviderSimTab() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Barre de progression de l'enrichissement */}
       {isEnriching && enrichmentProgress.total > 0 && (
-        <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+        <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950 py-2">
           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-          <AlertTitle>Enrichissement des données Truphone en cours...</AlertTitle>
+          <AlertTitle className="text-sm">Enrichissement en cours...</AlertTitle>
           <AlertDescription>
-            <div className="space-y-2">
-              <p className="text-sm">
-                Chargement des données d'utilisation: {enrichmentProgress.current} / {enrichmentProgress.total} SIMs
+            <div className="space-y-1">
+              <p className="text-xs">
+                {enrichmentProgress.current} / {enrichmentProgress.total} SIMs
               </p>
-              <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+              <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
                 <div
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${(enrichmentProgress.current / enrichmentProgress.total) * 100}%` }}
                 ></div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Les SIMs de base sont déjà affichées. Les données d'utilisation sont chargées progressivement en arrière-plan.
-              </p>
             </div>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Alerte pour SIMs presque épuisées */}
-      {lowDataSims.length > 0 && (
-        <Alert
-          variant={criticalSims.length > 0 ? "destructive" : "default"}
-          className={criticalSims.length === 0 ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950" : ""}
-        >
+      {/* Alerte pour SIMs presque épuisées - Afficher seulement si critique */}
+      {criticalSims.length > 0 && (
+        <Alert variant="destructive" className="py-2">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>
-            {criticalSims.length > 0 ? "⚠️ SIMs en situation critique" : "💡 Reminder: SIMs nécessitant une attention"}
-          </AlertTitle>
+          <AlertTitle className="text-sm">⚠️ {criticalSims.length} SIM(s) critiques</AlertTitle>
           <AlertDescription>
-            <div className="space-y-2">
-              {criticalSims.length > 0 && (
-                <div>
-                  <strong className="text-red-600 dark:text-red-400">
-                    🚨 {criticalSims.length} SIM(s) presque épuisée(s) (≥ {DATA_USAGE_THRESHOLDS.DEPLETED}%)
-                  </strong>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    {criticalSims.slice(0, 5).map(sim => (
-                      <li key={sim.id} className="text-sm">
-                        <strong>{sim.iccid}</strong> - {sim.dataUsagePercent?.toFixed(1)}% utilisé
-                        {sim.servicePack && ` (${sim.servicePack})`}
-                      </li>
-                    ))}
-                    {criticalSims.length > 5 && (
-                      <li className="text-sm italic">... et {criticalSims.length - 5} autre(s)</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-              {warningSims.length > 0 && (
-                <div className={criticalSims.length > 0 ? "mt-3" : ""}>
-                  <strong className={criticalSims.length > 0 ? "text-yellow-600 dark:text-yellow-400" : ""}>
-                    ⚡ {warningSims.length} SIM(s) approchant la limite (≥ {DATA_USAGE_THRESHOLDS.WARNING}%)
-                  </strong>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    {warningSims.slice(0, 3).map(sim => (
-                      <li key={sim.id} className="text-sm">
-                        <strong>{sim.iccid}</strong> - {sim.dataUsagePercent?.toFixed(1)}% utilisé
-                        {sim.servicePack && ` (${sim.servicePack})`}
-                      </li>
-                    ))}
-                    {warningSims.length > 3 && (
-                      <li className="text-sm italic">... et {warningSims.length - 3} autre(s)</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-              <p className="text-sm mt-2 italic">
-                💡 Conseil: Rechargez ces SIMs avant qu'elles n'atteignent 100% pour éviter les interruptions de service.
-              </p>
-            </div>
+            <p className="text-xs">
+              {criticalSims.slice(0, 2).map(sim => sim.iccid).join(", ")}
+              {criticalSims.length > 2 && ` +${criticalSims.length - 2} autre(s)`}
+            </p>
           </AlertDescription>
         </Alert>
       )}
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Toutes les Cartes SIM (3 Opérateurs)</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Vue unifiée des SIMs de Things Mobile, Phenix et Truphone
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Provider Status Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {providerStatuses.map((providerStatus) => (
-              <Card key={providerStatus.provider} className="border-2">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium">{providerStatus.provider}</p>
-                    {providerStatus.status === "loading" && (
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                    )}
-                    {providerStatus.status === "success" && (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    )}
-                    {providerStatus.status === "error" && (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {providerStatus.status === "success" ? providerStatus.count : "—"}
-                  </p>
-                  {providerStatus.status === "error" && (
-                    <p className="text-xs text-red-500 mt-1">{providerStatus.error}</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Search Bar */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="Rechercher par MSISDN, ICCID ou opérateur..."
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
+        <CardHeader className="pb-2 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Cartes SIM (3 Opérateurs)</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Things Mobile, Phenix et Truphone
+              </p>
             </div>
             <Button
               onClick={() => refetch()}
               variant="outline"
+              size="sm"
               disabled={isLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
               Actualiser
             </Button>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Search Bar avec indicateur de recherche API */}
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 relative">
+              <Input
+                placeholder="Rechercher par MSISDN, ICCID, IMEI..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                className="h-9"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                </div>
+              )}
+            </div>
+            {apiSearchResults.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                +{apiSearchResults.length} via API
+              </Badge>
+            )}
+          </div>
 
-          {/* Error Alert */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Erreur de chargement</AlertTitle>
-              <AlertDescription>
-                {error instanceof Error ? error.message : "Impossible de récupérer les SIMs"}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Warning for partial data */}
+          {/* Warning for partial data - Compact */}
           {providerStatuses.some((p) => p.status === "error") && !isLoading && (
-            <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle>Données partielles</AlertTitle>
+            <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
+              <AlertTitle className="text-sm">Données partielles</AlertTitle>
               <AlertDescription>
-                Certains opérateurs n'ont pas pu être chargés. Les données affichées sont incomplètes.
-                <br />
-                {providerStatuses
-                  .filter((p) => p.status === "error")
-                  .map((p) => `❌ ${p.provider}: ${p.error}`)
-                  .join(" • ")}
+                <p className="text-xs">
+                  {providerStatuses
+                    .filter((p) => p.status === "error")
+                    .map((p) => `${p.provider}`)
+                    .join(", ")} indisponible(s)
+                </p>
               </AlertDescription>
             </Alert>
           )}
 
-          {/* Filtres */}
-          <div className="grid gap-3 md:grid-cols-4">
+          {/* Filtres - Compact */}
+          <div className="grid gap-2 md:grid-cols-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Opérateur</label>
+              <label className="text-xs font-medium mb-1 block">Opérateur</label>
               <Select value={providerFilter} onValueChange={setProviderFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les opérateurs" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Tous" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous les opérateurs</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="Things Mobile">Things Mobile</SelectItem>
                   <SelectItem value="Phenix">Phenix</SelectItem>
                   <SelectItem value="Truphone">Truphone</SelectItem>
@@ -861,13 +1165,13 @@ export function MultiProviderSimTab() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Statut</label>
+              <label className="text-xs font-medium mb-1 block">Statut</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les statuts" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Tous" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="active">Actif</SelectItem>
                   <SelectItem value="inactive">Inactif</SelectItem>
                   <SelectItem value="suspended">Suspendu</SelectItem>
@@ -877,17 +1181,17 @@ export function MultiProviderSimTab() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Niveau d'alerte</label>
+              <label className="text-xs font-medium mb-1 block">Niveau d'alerte</label>
               <Select value={dataAlertFilter} onValueChange={setDataAlertFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les niveaux" />
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Tous" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous les niveaux</SelectItem>
-                  <SelectItem value="ok">✅ OK (&lt;{DATA_USAGE_THRESHOLDS.WARNING}%)</SelectItem>
-                  <SelectItem value="warning">⚡ Attention ({DATA_USAGE_THRESHOLDS.WARNING}-{DATA_USAGE_THRESHOLDS.CRITICAL}%)</SelectItem>
-                  <SelectItem value="critical">⚠️ Critique ({DATA_USAGE_THRESHOLDS.CRITICAL}-{DATA_USAGE_THRESHOLDS.DEPLETED}%)</SelectItem>
-                  <SelectItem value="depleted">🚨 Épuisé (≥{DATA_USAGE_THRESHOLDS.DEPLETED}%)</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="ok">✅ OK</SelectItem>
+                  <SelectItem value="warning">⚡ Attention</SelectItem>
+                  <SelectItem value="critical">⚠️ Critique</SelectItem>
+                  <SelectItem value="depleted">🚨 Épuisé</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -895,33 +1199,37 @@ export function MultiProviderSimTab() {
             <div className="flex items-end">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   setProviderFilter("all");
                   setStatusFilter("all");
                   setDataAlertFilter("all");
                   setSearchValue("");
                 }}
-                className="w-full"
+                className="w-full h-9"
               >
-                Réinitialiser filtres
+                Réinitialiser
               </Button>
             </div>
           </div>
 
-          {/* Data Table */}
-          <div className="rounded-lg border bg-card">
+          {/* Data Table avec virtualisation pour performance */}
+          <div className="rounded-lg border bg-card overflow-x-auto">
             <EnhancedDataTable
               data={filteredSims}
               columns={columns}
               loading={isLoading}
-              enablePagination={true}
+              enablePagination={false}
             />
           </div>
+          <p className="text-xs text-muted-foreground">
+            {filteredSims.length} SIM(s) affichée(s) sur {combinedSims.length} au total • Virtualisation activée
+          </p>
 
           {!isLoading && filteredSims.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
-              <AlertTriangle className="h-5 w-5" />
-              <p>Aucune carte SIM trouvée</p>
+            <div className="flex flex-col items-center justify-center gap-2 py-6 text-muted-foreground">
+              <AlertTriangle className="h-4 w-4" />
+              <p className="text-sm">Aucune carte SIM trouvée</p>
             </div>
           )}
         </CardContent>

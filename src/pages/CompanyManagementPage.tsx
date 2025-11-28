@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Search, RefreshCw, Building, Plus, Pencil, Trash2, Users, Loader2, ArrowUp, Car } from "lucide-react";
-import { EnhancedDataTable } from "@/components/tables/EnhancedDataTable";
-import { toast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CompanyUsersList } from "@/components/CompanyUsersList";
+import { CompanyVehiclesDialog } from "@/components/dialogs/CompanyVehiclesDialog";
+import { DeleteConfirmationDialog } from "@/components/dialogs/DeleteConfirmationDialog";
 import AddCompanyForm from "@/components/forms/AddCompanyForm";
 import EditCompanyForm from "@/components/forms/EditCompanyForm";
-import { DeleteConfirmationDialog } from "@/components/dialogs/DeleteConfirmationDialog";
-import { CompanyVehiclesDialog } from "@/components/dialogs/CompanyVehiclesDialog";
-import { CompanyUsersList } from "@/components/CompanyUsersList";
-import * as CompanyService from "@/services/CompanyService";
+import { EnhancedDataTable } from "@/components/tables/EnhancedDataTable";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/use-toast";
 import { useInfiniteCompanies } from "@/hooks/useInfiniteCompanies";
+import * as CompanyService from "@/services/CompanyService";
+import { ArrowUp, Building, Car, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export default function CompanyManagementPage() {
   // Use infinite scroll hook
@@ -181,7 +181,9 @@ export default function CompanyManagementPage() {
   };
 
   const handleViewVehicles = (company: any) => {
-    setSelectedCompanyForVehicles(company);
+    // Récupérer la company depuis la liste à jour pour avoir le dernier statut ANTAI
+    const updatedCompany = companies.find(c => c.id === company.id) || company;
+    setSelectedCompanyForVehicles(updatedCompany);
     setVehiclesDialogOpen(true);
   };
 
@@ -476,6 +478,19 @@ export default function CompanyManagementPage() {
         onOpenChange={setVehiclesDialogOpen}
         companyId={selectedCompanyForVehicles?.id || ""}
         companyName={selectedCompanyForVehicles?.name || ""}
+        haveAntai={selectedCompanyForVehicles?.haveAntai || false}
+        hasAntaiSubscription={selectedCompanyForVehicles?.hasAntaiSubscription || false}
+        onAntaiStatusChange={(companyId, haveAntai) => {
+          // Mettre à jour l'état local de la company sélectionnée
+          setSelectedCompanyForVehicles(prev => 
+            prev ? { ...prev, haveAntai } : null
+          );
+          // Mettre à jour la company dans la liste
+          const updatedCompany = companies.find(c => c.id === companyId);
+          if (updatedCompany) {
+            updateCompany({ ...updatedCompany, haveAntai });
+          }
+        }}
       />
     </div>
   );

@@ -1,27 +1,11 @@
 
-import React, { useState, useMemo, useRef } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Edit, Eye, EyeOff, Filter, Link, Search, Trash, Unlink } from "lucide-react";
-import { CopyableCell } from "./CopyableCell";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { EnhancedPagination } from "@/components/ui/enhanced-pagination";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Edit, Link, Trash, Unlink } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { CopyableCell } from "./CopyableCell";
 
 export interface Column {
   id: string;
@@ -181,7 +165,7 @@ export function EnhancedDataTable({
   const displayData = enablePagination ? paginatedData : sortedData;
 
   // Enable virtualization for better performance with large datasets
-  const enableVirtual = true;
+  const enableVirtual = !enablePagination; // Use virtualization when pagination is disabled
   const parentRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: displayData.length,
@@ -241,7 +225,7 @@ export function EnhancedDataTable({
     
     // Sinon, utiliser le rendu par défaut (CopyableCell)
     return (
-      <CopyableCell key={column.id} value={value} asChild />
+      <CopyableCell key={column.id} value={value} />
     );
   };
 
@@ -259,7 +243,7 @@ export function EnhancedDataTable({
   return (
     <div className="space-y-4">
       <div className="border rounded-md">
-      <div ref={parentRef} className="">
+      <div ref={parentRef} className={enableVirtual ? "overflow-auto max-h-[600px]" : ""}>
         <Table>
           <TableHeader>
               <TableRow>
