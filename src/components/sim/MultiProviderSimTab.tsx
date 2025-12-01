@@ -451,8 +451,8 @@ export function MultiProviderSimTab() {
                 break;
               }
 
-              if (!pageResult.hasMore || page >= pageResult.totalPages) {
-                console.log(`   📄 Dernière page atteinte (${page}/${pageResult.totalPages})`);
+              if (!pageResult.hasMore) {
+                console.log(`   📄 Dernière page atteinte (page ${page})`);
                 break;
               }
 
@@ -586,7 +586,7 @@ export function MultiProviderSimTab() {
               break; // Arrêter dès qu'on trouve
             }
 
-            if (!pageResult.hasMore || page >= pageResult.totalPages) break;
+            if (!pageResult.hasMore) break;
             page++;
           }
 

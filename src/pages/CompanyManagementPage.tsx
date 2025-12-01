@@ -488,7 +488,7 @@ export default function CompanyManagementPage() {
           // Mettre à jour la company dans la liste
           const updatedCompany = companies.find(c => c.id === companyId);
           if (updatedCompany) {
-            updateCompany({ ...updatedCompany, haveAntai });
+            updateCompany({ ...updatedCompany });
           }
         }}
       />
