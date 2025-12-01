@@ -402,6 +402,18 @@ export default function VehiclesDevicesPage() {
       console.log('✅ Vehicle update result type:', typeof updatedVehicle);
       console.log('✅ Vehicle update result truthy:', !!updatedVehicle);
 
+      // NEW: Complete device association if IMEI was provided during creation
+      if (data.deviceCreated && data.vehicleDeviceImei && data.immatriculation) {
+        console.log('🔗 Completing device association for created vehicle...');
+        try {
+          await associateDeviceToVehicle(data.vehicleDeviceImei, data.immatriculation);
+          console.log('✅ Device association completed');
+        } catch (assocError) {
+          console.error('⚠️ Device association failed:', assocError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
+
       // Optimized: Update local state instead of reloading all data
       if (updatedVehicle) {
         console.log('✅ Using optimized update: updating local state with modified vehicle');
