@@ -44,21 +44,37 @@ export interface AWNApiResponse {
 }
 
 /**
+ * Formate une plaque d'immatriculation au format français standard (XX-NNN-XX)
+ */
+const formatFrenchPlate = (immat: string): string => {
+  // Nettoyer et mettre en majuscules
+  const cleaned = immat.replace(/[\s-]/g, '').toUpperCase();
+  
+  // Si c'est le nouveau format français (7 caractères: 2 lettres + 3 chiffres + 2 lettres)
+  if (/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(cleaned)) {
+    return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5, 7)}`;
+  }
+  
+  // Si c'est l'ancien format (ex: 1234 AB 75), le retourner tel quel
+  return cleaned;
+};
+
+/**
  * Récupère les informations d'un véhicule par sa plaque d'immatriculation
  * via l'API Auto Ways Network (SIV France)
  */
 export const fetchVehicleInfoByPlate = async (immatriculation: string): Promise<AWNApiResponse> => {
   try {
-    // Nettoyer l'immatriculation (enlever espaces et tirets)
-    const cleanedImmat = immatriculation.replace(/[\s-]/g, '').toUpperCase();
+    // Formater l'immatriculation au format français standard avec tirets
+    const formattedImmat = formatFrenchPlate(immatriculation);
     
-    if (!cleanedImmat) {
+    if (!formattedImmat) {
       return { success: false, error: 'Immatriculation vide' };
     }
 
-    const url = `${AWN_API_BASE}/v1/fr?immat=${encodeURIComponent(cleanedImmat)}&token=${AWN_TOKEN}`;
+    const url = `${AWN_API_BASE}/v1/fr?immat=${encodeURIComponent(formattedImmat)}&token=${AWN_TOKEN}`;
     
-    console.log(`🔍 AWN API: Recherche véhicule ${cleanedImmat}`);
+    console.log(`🔍 AWN API: Recherche véhicule ${formattedImmat}`);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -97,7 +113,7 @@ export const fetchVehicleInfoByPlate = async (immatriculation: string): Promise<
     // Mapper les champs de l'API vers notre structure
     const vehicleInfo: AWNVehicleInfo = {
       vin: data.vin || data.VIN,
-      immatriculation: cleanedImmat,
+      immatriculation: formattedImmat,
       marque: data.marque,
       modele: data.modele,
       nom_commercial: data.nom_commercial || data.nomCommercial,
