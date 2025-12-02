@@ -54,43 +54,48 @@ export const fetchAllCompanies = async () => {
 
 export const searchCompanies = async (searchName, searchEmail, searchSiret) => {
   return await withCredentialRetry(async () => {
-    // Validation des critères
-    const hasName = searchName && searchName.trim();
-    const hasEmail = searchEmail && searchEmail.trim();
-    const hasSiret = searchSiret && searchSiret.trim();
+    let filtersArray = [];
     
-    if (!hasName && !hasEmail && !hasSiret) {
+    if (searchSiret && searchSiret.trim()) {
+      filtersArray.push({ siret: { contains: searchSiret.trim() } });
+    }
+    
+    if (searchName && searchName.trim()) {
+      filtersArray.push({ name: { contains: searchName.trim() } });
+    }
+
+    if (searchEmail && searchEmail.trim()) {
+      filtersArray.push({ email: { contains: searchEmail.trim() } });
+    }
+    
+    if (filtersArray.length === 0) {
       throw new Error("Veuillez saisir au moins un critère de recherche");
     }
 
-    // Recherche côté client (insensible à la casse) car GraphQL contains est sensible à la casse
-    const allCompanies = await fetchAllCompanies();
-    
-    const searchNameLower = hasName ? searchName.trim().toLowerCase() : null;
-    const searchEmailLower = hasEmail ? searchEmail.trim().toLowerCase() : null;
-    const searchSiretTrimmed = hasSiret ? searchSiret.trim() : null;
-    
-    return allCompanies.filter(company => {
-      const nameMatch = !searchNameLower || 
-        (company.name && company.name.toLowerCase().includes(searchNameLower));
-      const emailMatch = !searchEmailLower || 
-        (company.email && company.email.toLowerCase().includes(searchEmailLower));
-      const siretMatch = !searchSiretTrimmed || 
-        (company.siret && company.siret.includes(searchSiretTrimmed));
-      
-      // Retourne true si au moins un critère correspond (OR logic)
-      if (searchNameLower && searchEmailLower && searchSiretTrimmed) {
-        return nameMatch || emailMatch || siretMatch;
-      } else if (searchNameLower && searchEmailLower) {
-        return nameMatch || emailMatch;
-      } else if (searchNameLower && searchSiretTrimmed) {
-        return nameMatch || siretMatch;
-      } else if (searchEmailLower && searchSiretTrimmed) {
-        return emailMatch || siretMatch;
-      } else {
-        return nameMatch || emailMatch || siretMatch;
+    let nextToken = null;
+    let allCompanies = [];
+
+    const variables = {
+      limit: 1000, 
+      filter: {
+        or: filtersArray
       }
-    });
+    };
+
+    do {
+      const queryVariables = { ...variables, nextToken };
+
+      const res = await client.graphql({
+        query: queries.listCompanies,
+        variables: queryVariables
+      });
+
+      const fetchedCompanies = res.data.listCompanies.items;
+      allCompanies = [...allCompanies, ...fetchedCompanies];
+      nextToken = res.data.listCompanies.nextToken;
+    } while (nextToken); 
+
+    return allCompanies;
   });
 };
 
