@@ -34,6 +34,7 @@ import * as mutations from '@/graphql/mutations';
 import * as queries from '@/graphql/queries';
 import { toast } from "@/hooks/use-toast";
 import { deleteVehicleData } from "@/services/VehicleService";
+import { fetchVehicleInfoByPlate, mapAWNToVehicleFields } from "@/services/AutoWaysService";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AlertCircle, Car, CheckCircle, CheckCircle2, Download, Filter, Loader2, XCircle } from "lucide-react";
@@ -225,13 +226,92 @@ export function CompanyVehiclesDialog({
     }
 
     setSyncingSIV(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
     try {
-      // Simulation de l'appel API SIV
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await waitForAmplifyConfig();
+      
+      // Récupérer les véhicules sélectionnés
+      const vehiclesToSync = vehicles.filter(v => selectedVehicles.has(v.immat));
+      
+      console.log(`🚗 SIV: Synchronisation de ${vehiclesToSync.length} véhicule(s)`);
+      
+      // Traiter par lots de 3 pour ne pas surcharger l'API
+      const batchSize = 3;
+      for (let i = 0; i < vehiclesToSync.length; i += batchSize) {
+        const batch = vehiclesToSync.slice(i, i + batchSize);
+        
+        // Traiter le lot en parallèle
+        const results = await Promise.all(
+          batch.map(async (vehicle) => {
+            try {
+              // Appeler l'API Auto Ways Network
+              const awnResponse = await fetchVehicleInfoByPlate(vehicle.immat);
+              
+              if (!awnResponse.success || !awnResponse.data) {
+                console.warn(`⚠️ SIV: Véhicule ${vehicle.immat} - ${awnResponse.error}`);
+                return { success: false, immat: vehicle.immat, error: awnResponse.error };
+              }
+              
+              // Mapper les données AWN vers les champs du véhicule
+              const awnFields = mapAWNToVehicleFields(awnResponse.data);
+              
+              // Mettre à jour le véhicule dans la base de données
+              await client.graphql({
+                query: mutations.updateVehicle,
+                variables: {
+                  input: {
+                    immat: vehicle.immat,
+                    ...awnFields,
+                  }
+                }
+              });
+              
+              console.log(`✅ SIV: Véhicule ${vehicle.immat} mis à jour`);
+              return { success: true, immat: vehicle.immat };
+              
+            } catch (error) {
+              console.error(`❌ SIV: Erreur pour ${vehicle.immat}:`, error);
+              return { success: false, immat: vehicle.immat, error: 'Erreur de mise à jour' };
+            }
+          })
+        );
+        
+        // Compter les succès et erreurs
+        results.forEach(r => {
+          if (r.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            if (r.error) errors.push(`${r.immat}: ${r.error}`);
+          }
+        });
+        
+        // Petite pause entre les lots
+        if (i + batchSize < vehiclesToSync.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // Rafraîchir la liste des véhicules
+      await fetchVehicles();
+      
+      // Afficher le résultat
+      let message = `Synchronisation SIV terminée : ${successCount} véhicule(s) mis à jour`;
+      if (errorCount > 0) {
+        message += `, ${errorCount} échec(s)`;
+      }
       
       toast({
-        description: `Synchronisation SIV lancée pour ${selectedVehicles.size} véhicule(s)`,
+        variant: errorCount > 0 && successCount === 0 ? "destructive" : "default",
+        description: message,
       });
+      
+      if (errors.length > 0 && errors.length <= 3) {
+        console.log("Détails des erreurs:", errors);
+      }
       
       setSelectedVehicles(new Set());
     } catch (error) {
