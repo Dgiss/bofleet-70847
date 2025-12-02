@@ -1,5 +1,6 @@
 import { DeleteConfirmationDialog } from "@/components/dialogs/DeleteConfirmationDialog";
 import { CopyableCell } from "@/components/tables/CopyableCell";
+import { getSivVehicleInfo } from "@/services/SivService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -225,15 +226,67 @@ export function CompanyVehiclesDialog({
     }
 
     setSyncingSIV(true);
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
-      // Simulation de l'appel API SIV
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      for (const immat of selectedVehicles) {
+        try {
+          console.log(`🔄 Synchronisation SIV pour ${immat}...`);
+          
+          // 1. Appeler l'API SIV AWN
+          const sivData = await getSivVehicleInfo(immat);
+          
+          if (sivData) {
+            // 2. Préparer les données pour la mutation (filtrer les valeurs vides)
+            const updateInput: any = { immat };
+            Object.entries(sivData).forEach(([key, value]) => {
+              if (value && value !== '' && value !== 'undefined') {
+                updateInput[key] = value;
+              }
+            });
+
+            // 3. Mettre à jour le véhicule avec les données SIV
+            await withCredentialRetry(async () => {
+              await client.graphql({
+                query: mutations.updateVehicle,
+                variables: { input: updateInput }
+              });
+            });
+            
+            console.log(`✅ SIV: ${immat} synchronisé avec succès`);
+            successCount++;
+          } else {
+            console.warn(`⚠️ SIV: Pas de données pour ${immat}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`❌ Erreur SIV pour ${immat}:`, error);
+          errorCount++;
+        }
+        
+        // Délai entre les requêtes pour éviter le rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Message de résultat
+      if (successCount > 0 && errorCount === 0) {
+        toast({
+          description: `✅ SIV: ${successCount} véhicule(s) synchronisé(s) avec succès`,
+        });
+      } else if (successCount > 0 && errorCount > 0) {
+        toast({
+          description: `⚠️ SIV: ${successCount} synchronisé(s), ${errorCount} erreur(s)`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          description: `❌ SIV: Aucune synchronisation réussie (${errorCount} erreur(s))`,
+        });
+      }
       
-      toast({
-        description: `Synchronisation SIV lancée pour ${selectedVehicles.size} véhicule(s)`,
-      });
-      
-      setSelectedVehicles(new Set());
+      // Rafraîchir les données
+      await fetchVehicles();
     } catch (error) {
       console.error("Erreur sync SIV:", error);
       toast({
@@ -242,6 +295,7 @@ export function CompanyVehiclesDialog({
       });
     } finally {
       setSyncingSIV(false);
+      setSelectedVehicles(new Set());
     }
   };
 
