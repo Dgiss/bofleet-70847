@@ -1,6 +1,5 @@
 
 import { Button } from "@/components/ui/button";
-import { TableCell } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
 import { Copy, CopyCheck } from "lucide-react";
 import { useState } from "react";
@@ -40,24 +39,22 @@ export function CopyableCell({ value, className }: CopyableCellProps) {
   };
   
   return (
-    <TableCell className={`relative group ${className}`}>
-      <div className="flex items-center whitespace-nowrap">
-        <span className="mr-2">{displayValue}</span>
-        {displayValue !== '-' && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" 
-            onClick={handleCopy}
-          >
-            {copied ? (
-              <CopyCheck className="h-3.5 w-3.5 text-green-500" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        )}
-      </div>
-    </TableCell>
+    <div className={`relative group flex items-center whitespace-nowrap ${className || ''}`}>
+      <span className="mr-2">{displayValue}</span>
+      {displayValue !== '-' && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" 
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <CopyCheck className="h-3.5 w-3.5 text-green-500" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      )}
+    </div>
   );
 }
