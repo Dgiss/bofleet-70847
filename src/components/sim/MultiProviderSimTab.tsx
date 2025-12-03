@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable";
-import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap, Eye, EyeOff } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims, getThingsMobileSimStatus } from "@/services/ThingsMobileService";
-import { listPhenixSims } from "@/services/PhenixService";
+import { usePhenixSims } from "@/hooks/usePhenixSims";
 import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans, getTruphoneSimStatus } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
 import {
@@ -51,6 +51,15 @@ interface UnifiedSim {
   testStateStartDate?: string;
   _truphoneSimRef?: any; // Référence à la SIM Truphone originale pour enrichissement lazy
   _enriched?: boolean; // Marque si la SIM a été enrichie
+  // Champs Phenix spécifiques
+  statusLabel?: string;
+  operator?: string;
+  puk1?: string;
+  pin1?: string;
+  puk2?: string;
+  pin2?: string;
+  clientCode?: string;
+  orderId?: string;
 }
 
 interface ProviderStatus {
@@ -151,6 +160,19 @@ export function MultiProviderSimTab() {
   const [dataAlertFilter, setDataAlertFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Hook Phenix avec cache React Query
+  const { 
+    sims: phenixSims, 
+    isLoading: isPhenixLoading, 
+    error: phenixError,
+    syncSims: syncPhenixSims,
+    isSyncing: isPhenixSyncing,
+  } = usePhenixSims();
+  
+  // State pour afficher/masquer les codes PIN/PUK
+  const [visiblePinPuk, setVisiblePinPuk] = useState<Record<string, boolean>>({});
+  
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([
     { provider: "Things Mobile", status: "loading", count: 0 },
     { provider: "Phenix", status: "loading", count: 0 },
@@ -168,6 +190,40 @@ export function MultiProviderSimTab() {
   const [isSearching, setIsSearching] = useState(false);
   const [apiSearchResults, setApiSearchResults] = useState<UnifiedSim[]>([]);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
+  
+  // Convertir les SIMs Phenix au format UnifiedSim
+  const phenixUnifiedSims = useMemo<UnifiedSim[]>(() => {
+    return phenixSims.map((sim) => ({
+      id: `phenix-${sim.iccid || sim.msisdn}`,
+      provider: "Phenix" as const,
+      msisdn: sim.msisdn || "—",
+      iccid: sim.iccid || "—",
+      status: sim.status || "unknown",
+      statusLabel: sim.statusLabel,
+      operator: sim.operator,
+      simType: sim.simType,
+      puk1: sim.puk1,
+      pin1: sim.pin1,
+      puk2: sim.puk2,
+      pin2: sim.pin2,
+      clientCode: sim.clientCode,
+      orderId: sim.orderId,
+    }));
+  }, [phenixSims]);
+  
+  // Mettre à jour le statut Phenix quand le hook change
+  useEffect(() => {
+    setProviderStatuses(prev => prev.map(p => 
+      p.provider === "Phenix" 
+        ? { 
+            ...p, 
+            status: isPhenixLoading ? "loading" : phenixError ? "error" : "success",
+            count: phenixUnifiedSims.length,
+            error: phenixError?.message,
+          }
+        : p
+    ));
+  }, [isPhenixLoading, phenixError, phenixUnifiedSims.length]);
 
   const loadSimsProgressively = useCallback(async () => {
     setIsLoading(true);
@@ -212,34 +268,13 @@ export function MultiProviderSimTab() {
         });
       }
 
-      // 2. Phenix EN DEUXIÈME
-      try {
-        console.log("📱 Chargement Phenix...");
-        const phenixSims = await listPhenixSims();
-        const phenixUnified = phenixSims.map((sim) => ({
-          id: `phenix-${sim.iccid || sim.msisdn}`,
-          provider: "Phenix" as const,
-          msisdn: sim.msisdn || "—",
-          iccid: sim.iccid || "—",
-          status: sim.status || "unknown",
-        }));
-
-        setAllSims(prev => [...prev, ...phenixUnified]); // Afficher immédiatement
-        newStatuses.push({
-          provider: "Phenix",
-          status: "success",
-          count: phenixUnified.length,
-        });
-        console.log(`✅ Phenix: ${phenixUnified.length} SIMs affichées`);
-      } catch (err: any) {
-        console.error("❌ Phenix error:", err);
-        newStatuses.push({
-          provider: "Phenix",
-          status: "error",
-          count: 0,
-          error: err.message,
-        });
-      }
+      // 2. Phenix EN DEUXIÈME - Géré via usePhenixSims hook (skip ici)
+      // Les SIMs Phenix sont chargées via le hook usePhenixSims pour bénéficier du cache React Query
+      newStatuses.push({
+        provider: "Phenix",
+        status: "loading",
+        count: 0,
+      });
 
       // 3. Truphone EN DERNIER (le plus lent) - CHARGEMENT DE LA PREMIÈRE PAGE SEULEMENT
       try {
@@ -790,16 +825,17 @@ export function MultiProviderSimTab() {
     // return () => clearTimeout(timer);
   }, [dataUpdatedAt, isLoading]); // allSims et isEnriching exclus volontairement pour éviter les boucles
 
-  // Combiner les SIMs locales avec les résultats de recherche API
+  // Combiner les SIMs locales avec les résultats de recherche API et Phenix (via hook)
   const combinedSims = useMemo(() => {
     // Fusionner sans doublons (utiliser l'ID comme clé unique)
     const simsMap = new Map<string, UnifiedSim>();
 
     allSims.forEach(sim => simsMap.set(sim.id, sim));
+    phenixUnifiedSims.forEach(sim => simsMap.set(sim.id, sim)); // SIMs Phenix via hook
     apiSearchResults.forEach(sim => simsMap.set(sim.id, sim));
 
     return Array.from(simsMap.values());
-  }, [allSims, apiSearchResults]);
+  }, [allSims, phenixUnifiedSims, apiSearchResults]);
 
   const filteredSims = combinedSims.filter((sim) => {
     // Filtre de recherche texte
@@ -884,11 +920,60 @@ export function MultiProviderSimTab() {
       id: "status",
       label: "Statut",
       sortable: true,
-      renderCell: (value: string) => (
-        <Badge variant={statusToBadgeVariant(value)}>
-          {statusToDisplayText(value)}
-        </Badge>
+      renderCell: (value: string, row: any) => (
+        <div className="flex flex-col gap-0.5">
+          <Badge variant={statusToBadgeVariant(value)}>
+            {statusToDisplayText(value)}
+          </Badge>
+          {row.provider === "Phenix" && row.statusLabel && row.statusLabel !== "Inconnu" && (
+            <span className="text-xs text-muted-foreground">{row.statusLabel}</span>
+          )}
+        </div>
       ),
+    },
+    {
+      id: "operator",
+      label: "Réseau (Phenix)",
+      sortable: true,
+      renderCell: (value: any, row: any) => {
+        if (row.provider === "Phenix" && row.operator) {
+          return <span className="text-sm">{row.operator}</span>;
+        }
+        return "—";
+      }
+    },
+    {
+      id: "pinPuk",
+      label: "PIN/PUK (Phenix)",
+      sortable: false,
+      renderCell: (value: any, row: any) => {
+        if (row.provider !== "Phenix" || (!row.pin1 && !row.puk1)) {
+          return "—";
+        }
+        const isVisible = visiblePinPuk[row.id];
+        return (
+          <div className="flex items-center gap-2">
+            {isVisible ? (
+              <div className="text-xs space-y-0.5">
+                {row.pin1 && <div>PIN1: <span className="font-mono">{row.pin1}</span></div>}
+                {row.puk1 && <div>PUK1: <span className="font-mono">{row.puk1}</span></div>}
+                {row.pin2 && <div>PIN2: <span className="font-mono">{row.pin2}</span></div>}
+                {row.puk2 && <div>PUK2: <span className="font-mono">{row.puk2}</span></div>}
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-xs">••••••••</span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => setVisiblePinPuk(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+            >
+              {isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        );
+      }
     },
     {
       id: "dataUsage",
@@ -1097,15 +1182,26 @@ export function MultiProviderSimTab() {
                 Things Mobile, Phenix et Truphone
               </p>
             </div>
-            <Button
-              onClick={() => refetch()}
-              variant="outline"
-              size="sm"
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
-              Actualiser
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => syncPhenixSims()}
+                variant="outline"
+                size="sm"
+                disabled={isPhenixSyncing}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isPhenixSyncing ? "animate-spin" : ""}`} />
+                Sync Phenix
+              </Button>
+              <Button
+                onClick={() => refetch()}
+                variant="outline"
+                size="sm"
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+                Actualiser
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

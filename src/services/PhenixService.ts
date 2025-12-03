@@ -2,13 +2,34 @@ import axios from "axios";
 
 const BASE_URL = "/api/phenix";
 let authToken: string | null = null;
+let cachedPartnerId: string | null = null;
 
 export interface PhenixSim {
-  msisdn: string;
-  iccid: string;
-  status: string; // Active, Suspended, Deleted
-  type?: string; // Physical or eSIM
-  imsi?: string;
+  // Identifiants
+  iccid: string;           // simSN de l'API
+  imsi: string;
+  msisdn: string;          // Numéro de téléphone
+  
+  // Statut
+  status: string;          // etat (code numérique)
+  statusLabel: string;     // etatLibelle ("Active", "Suspendue", etc.)
+  
+  // Infos réseau
+  operator: string;        // operateur
+  simType: string;         // typeSim
+  
+  // Codes de sécurité
+  puk1: string;
+  pin1: string;
+  puk2: string;
+  pin2: string;
+  
+  // Client
+  clientCode: string;      // codeClient
+  orderId: string;         // commandeSimId
+  
+  // Données brutes (pour debug)
+  rawData?: any;
 }
 
 export interface PhenixConsumption {
@@ -31,7 +52,6 @@ export interface PhenixRealtimeConsumption {
 const ensureCredentials = () => {
   const username = import.meta.env.VITE_PHENIX_USERNAME;
   const password = import.meta.env.VITE_PHENIX_PASSWORD;
-  const partenaireId = import.meta.env.VITE_PHENIX_PARTENAIRE_ID;
 
   if (!username || !password) {
     throw new Error(
@@ -39,56 +59,66 @@ const ensureCredentials = () => {
     );
   }
 
-  if (!partenaireId) {
-    throw new Error(
-      "Phenix partner ID missing. Please define VITE_PHENIX_PARTENAIRE_ID in your environment."
-    );
-  }
-
-  return { username, password, partenaireId };
+  return { username, password };
 };
 
-export const authenticatePhenix = async (): Promise<string> => {
+/**
+ * Décode un JWT et extrait le payload
+ */
+const decodeJwtPayload = (token: string): any => {
+  try {
+    const base64Payload = token.split('.')[1];
+    const payload = atob(base64Payload);
+    return JSON.parse(payload);
+  } catch (error) {
+    console.error("Erreur lors du décodage du JWT:", error);
+    return null;
+  }
+};
+
+export const authenticatePhenix = async (): Promise<{ token: string; partnerId: string }> => {
   const { username, password } = ensureCredentials();
 
   try {
     console.log("Phenix: Tentative d'authentification...");
-    console.log("Phenix: Username:", username);
 
     const response = await axios.post(
       `${BASE_URL}/Auth/authenticate`,
-      {
-        username,
-        password,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+      { username, password },
+      { headers: { "Content-Type": "application/json" } }
     );
 
     console.log("Phenix: Réponse d'authentification reçue", response.data);
 
-    // IMPORTANT : Selon la documentation Phenix, c'est l'access_token (Token JWT) qui doit être utilisé
-    // Le working_token est juste un champ informatif
-    authToken = response.data.access_token || response.data.token || response.data.jwt;
+    const token = response.data.access_token || response.data.token || response.data.jwt;
 
-    if (!authToken) {
+    if (!token) {
       console.error("Phenix: Structure de réponse inattendue:", response.data);
       throw new Error("Token d'accès (access_token) non trouvé dans la réponse");
     }
 
+    // Extraire PartenaireId directement du JWT
+    const payload = decodeJwtPayload(token);
+    const partnerId = payload?.PartenaireId || payload?.partenaireId || payload?.PartnerId;
+
+    if (!partnerId) {
+      console.error("Phenix: PartenaireId non trouvé dans le JWT:", payload);
+      throw new Error("PartenaireId non trouvé dans le token JWT");
+    }
+
+    authToken = token;
+    cachedPartnerId = partnerId;
+
     console.log("Phenix: Authentification réussie");
-    console.log("Phenix: Token reçu (JWT):", authToken.substring(0, 30) + "...");
+    console.log("Phenix: PartenaireId extrait du JWT:", partnerId);
     console.log("Phenix: Expires in:", response.data.expires_in, "secondes");
-    return authToken;
+
+    return { token, partnerId };
   } catch (error: any) {
     console.error("Phenix authentication error:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
-      statusText: error.response?.statusText,
     });
 
     const errorMsg = error.response?.data?.message ||
@@ -100,33 +130,30 @@ export const authenticatePhenix = async (): Promise<string> => {
   }
 };
 
-const ensureAuthenticated = async (): Promise<string> => {
-  if (!authToken) {
-    await authenticatePhenix();
+const ensureAuthenticated = async (): Promise<{ token: string; partnerId: string }> => {
+  if (!authToken || !cachedPartnerId) {
+    return await authenticatePhenix();
   }
-  return authToken!;
+  return { token: authToken, partnerId: cachedPartnerId };
 };
 
 export const listPhenixSims = async (): Promise<PhenixSim[]> => {
-  const token = await ensureAuthenticated();
-  const { partenaireId } = ensureCredentials();
+  const { token, partnerId } = await ensureAuthenticated();
 
   try {
     console.log("Phenix: Récupération de la liste des SIMs...");
-    console.log("Phenix: PartenaireId:", partenaireId);
+    console.log("Phenix: PartenaireId (from JWT):", partnerId);
+
     const response = await axios.get(`${BASE_URL}/GsmApi/V2/GetInfoSimList`, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      params: {
-        partenaireId,
-      },
+      params: { partenaireId: partnerId },
     });
 
     console.log("Phenix: Réponse GetInfoSimList:", response.data);
 
-    // Adapter selon la structure réelle de la réponse
     const sims = response.data.sims || response.data.Sims || response.data || [];
 
     if (!Array.isArray(sims)) {
@@ -137,26 +164,33 @@ export const listPhenixSims = async (): Promise<PhenixSim[]> => {
     console.log(`Phenix: ${sims.length} SIM(s) trouvée(s)`);
 
     return sims.map((sim: any) => ({
-      msisdn: sim.msisdn ?? sim.Msisdn ?? "",
-      iccid: sim.iccid ?? sim.Iccid ?? "",
-      status: sim.status ?? sim.state ?? sim.Status ?? sim.State ?? "Unknown",
-      type: sim.type ?? sim.Type ?? undefined,
-      imsi: sim.imsi ?? sim.Imsi ?? undefined,
+      iccid: sim.simSN || sim.iccid || sim.Iccid || "",
+      imsi: sim.imsi || sim.Imsi || "",
+      msisdn: sim.msisdn || sim.Msisdn || "",
+      status: String(sim.etat ?? sim.status ?? sim.Status ?? ""),
+      statusLabel: sim.etatLibelle || sim.statusLabel || "Inconnu",
+      operator: sim.operateur || sim.operator || "",
+      simType: sim.typeSim || sim.simType || "",
+      puk1: sim.puk1 || "",
+      pin1: sim.pin1 || "",
+      puk2: sim.puk2 || "",
+      pin2: sim.pin2 || "",
+      clientCode: sim.codeClient || sim.clientCode || "",
+      orderId: String(sim.commandeSimId || sim.orderId || ""),
+      rawData: sim,
     }));
   } catch (error: any) {
     console.error("Phenix list SIMs error:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
-      statusText: error.response?.statusText,
     });
     throw error;
   }
 };
 
 export const getPhenixSimStatus = async (msisdn: string): Promise<PhenixSim | null> => {
-  const token = await ensureAuthenticated();
-  const { partenaireId } = ensureCredentials();
+  const { token, partnerId } = await ensureAuthenticated();
 
   try {
     console.log(`Phenix: Consultation du statut de la ligne ${msisdn}...`);
@@ -165,20 +199,27 @@ export const getPhenixSimStatus = async (msisdn: string): Promise<PhenixSim | nu
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      params: {
-        msisdn,
-        partenaireId,
-      },
+      params: { msisdn, partenaireId: partnerId },
     });
 
     console.log("Phenix: Statut reçu:", response.data);
     const data = response.data;
+
     return {
-      msisdn: data.msisdn ?? msisdn,
-      iccid: data.iccid ?? "",
-      status: data.status ?? data.state ?? data.Status ?? data.State ?? "Unknown",
-      type: data.type ?? data.Type ?? undefined,
-      imsi: data.imsi ?? data.Imsi ?? undefined,
+      iccid: data.simSN || data.iccid || "",
+      imsi: data.imsi || "",
+      msisdn: data.msisdn || msisdn,
+      status: String(data.etat ?? data.status ?? ""),
+      statusLabel: data.etatLibelle || "Inconnu",
+      operator: data.operateur || "",
+      simType: data.typeSim || "",
+      puk1: data.puk1 || "",
+      pin1: data.pin1 || "",
+      puk2: data.puk2 || "",
+      pin2: data.pin2 || "",
+      clientCode: data.codeClient || "",
+      orderId: String(data.commandeSimId || ""),
+      rawData: data,
     };
   } catch (error: any) {
     console.error("Phenix get SIM status error:", {
@@ -193,22 +234,13 @@ export const getPhenixSimStatus = async (msisdn: string): Promise<PhenixSim | nu
 export const getPhenixRealtimeConsumption = async (
   msisdn: string
 ): Promise<PhenixRealtimeConsumption | null> => {
-  const token = await ensureAuthenticated();
-  const { partenaireId } = ensureCredentials();
+  const { token, partnerId } = await ensureAuthenticated();
 
   try {
     const response = await axios.post(
       `${BASE_URL}/GsmApi/V2/SdtrConso`,
-      {
-        partenaireId,
-        msisdn,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
+      { partenaireId: partnerId, msisdn },
+      { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
     );
 
     const data = response.data;
@@ -229,8 +261,7 @@ export const getPhenixConsumptionHistory = async (
   month: number,
   year: number
 ): Promise<PhenixConsumption | null> => {
-  const token = await ensureAuthenticated();
-  const { partenaireId } = ensureCredentials();
+  const { token, partnerId } = await ensureAuthenticated();
 
   try {
     const response = await axios.get(`${BASE_URL}/GsmApi/GetConsoMsisdnFromCDR`, {
@@ -239,9 +270,9 @@ export const getPhenixConsumptionHistory = async (
         "Content-Type": "application/json",
       },
       params: {
-        partenaireId,
+        partenaireId: partnerId,
         msisdn,
-        moisAnnee: `${String(month).padStart(2, '0')}${year}`, // Format MMYYYY
+        moisAnnee: `${String(month).padStart(2, '0')}${year}`,
       },
     });
 
@@ -263,39 +294,21 @@ export const getPhenixConsumptionHistory = async (
 
 /**
  * Recharge une carte SIM Phenix avec des données
- *
- * @param msisdn - Numéro MSISDN de la ligne
- * @param volumeMB - Volume de données à ajouter en MB
- * @param codeZone - Zone de recharge (par défaut : ZoneC = UE + DOM + Suisse + Andorre)
- *                   Zones disponibles : ZoneA, ZoneB, ZoneC, ZoneD, ZoneE, ZoneF, ZoneG, ZoneH,
- *                   FRANCE_BLOQUEE, FRANCE_FUP, HORS_EUROPE
- * @returns true si la recharge réussit, false sinon
  */
 export const rechargePhenixSim = async (
   msisdn: string,
   volumeMB: number,
   codeZone: string = "ZoneC"
 ): Promise<boolean> => {
-  const token = await ensureAuthenticated();
-  const { partenaireId } = ensureCredentials();
+  const { token, partnerId } = await ensureAuthenticated();
 
   try {
     console.log(`Phenix: Recharge de ${volumeMB} MB pour ${msisdn} (Zone: ${codeZone})`);
 
     const response = await axios.post(
       `${BASE_URL}/GsmApi/V2/MsisdnAddDataRecharge`,
-      {
-        partenaireId,
-        msisdn,
-        volumeDataEnMo: volumeMB,
-        codeZone,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
+      { partenaireId: partnerId, msisdn, volumeDataEnMo: volumeMB, codeZone },
+      { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
     );
 
     console.log("Phenix: Recharge réussie", response.data);
@@ -308,4 +321,13 @@ export const rechargePhenixSim = async (
     });
     return false;
   }
+};
+
+/**
+ * Force la réauthentification (utile pour rafraîchir le token)
+ */
+export const refreshPhenixAuth = async (): Promise<void> => {
+  authToken = null;
+  cachedPartnerId = null;
+  await authenticatePhenix();
 };
