@@ -113,6 +113,45 @@ export default function BoitierPage() {
     }
   }, [currentImei, searchImeis]);
 
+  const handlePasteImeis = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pastedText = e.clipboardData.getData('text');
+    
+    // Détecter si c'est une liste d'IMEI (plus de 15 caractères ou contient des séparateurs)
+    if (pastedText.length > 15 || /[\n\r,\s\t]/.test(pastedText)) {
+      e.preventDefault();
+      
+      // Parser les IMEI (séparés par ligne, virgule, espace, tab)
+      const imeis = pastedText
+        .split(/[\n\r,\s\t]+/)
+        .map(imei => imei.trim().replace(/[^0-9]/g, ''))
+        .filter(imei => imei.length === 15);
+      
+      // Filtrer les doublons
+      const newImeis = imeis.filter(imei => !searchImeis.includes(imei));
+      const duplicates = imeis.length - newImeis.length;
+      
+      if (newImeis.length > 0) {
+        setSearchImeis(prev => [...prev, ...newImeis]);
+        toast({
+          title: "IMEI collés avec succès",
+          description: `${newImeis.length} IMEI ajoutés${duplicates > 0 ? ` (${duplicates} doublons ignorés)` : ''}`,
+        });
+      } else if (imeis.length > 0) {
+        toast({
+          title: "Aucun nouvel IMEI",
+          description: "Tous les IMEI collés sont déjà dans la liste",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Aucun IMEI valide",
+          description: "Aucun IMEI à 15 chiffres trouvé dans le texte collé",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [searchImeis]);
+
   const handleRemoveImei = useCallback((imeiToRemove: string) => {
     setSearchImeis(prev => prev.filter(imei => imei !== imeiToRemove));
   }, []);
@@ -552,13 +591,14 @@ export default function BoitierPage() {
         
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="searchImei">IMEI (Appuyez sur Entrée pour ajouter)</Label>
+            <Label htmlFor="searchImei">IMEI (Entrée pour ajouter, ou collez une liste)</Label>
             <Input
               id="searchImei"
-              placeholder="Saisir un IMEI et appuyer sur Entrée"
+              placeholder="Saisir un IMEI ou coller une liste"
               value={currentImei}
               onChange={(e) => setCurrentImei(e.target.value)}
               onKeyDown={handleAddImei}
+              onPaste={handlePasteImeis}
             />
           </div>
 
