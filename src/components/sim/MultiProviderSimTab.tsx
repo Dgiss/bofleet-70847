@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { EnhancedDataTable, Column } from "@/components/tables/EnhancedDataTable";
-import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap, Eye, EyeOff } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Zap, Eye, EyeOff, Search } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { listAllThingsMobileSims, getThingsMobileSimStatus } from "@/services/ThingsMobileService";
 import { usePhenixSims } from "@/hooks/usePhenixSims";
-import { listTruphoneSims, listTruphoneSimsPaged, enrichTruphoneSimsWithUsage, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans, getTruphoneSimStatus } from "@/services/TruphoneService";
+import { listTruphoneSimsPaged, enrichTruphoneSimWithUsage, getAvailableTruphoneRatePlans, getTruphoneSimStatus } from "@/services/TruphoneService";
 import { RechargeSimDialog } from "@/components/dialogs/RechargeSimDialog";
+import { getPhenixSimStatus } from "@/services/PhenixService";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface UnifiedSim {
   id: string;
@@ -68,6 +70,33 @@ interface ProviderStatus {
   count: number;
   error?: string;
 }
+
+const API_PROVIDERS = ["Things Mobile", "Phenix", "Truphone"] as const;
+type ProviderName = typeof API_PROVIDERS[number];
+
+type ApiSearchPhase = "idle" | "loading" | "success" | "error" | "skipped";
+
+interface ApiSearchIndicator {
+  status: ApiSearchPhase;
+  message?: string;
+  latencyMs?: number;
+}
+
+type ApiSearchStatusMap = Record<ProviderName, ApiSearchIndicator>;
+
+interface ProviderSearchResult {
+  provider: ProviderName;
+  sims: UnifiedSim[];
+  duration: number;
+  skipped?: boolean;
+  message?: string;
+}
+
+const buildApiSearchStatus = (): ApiSearchStatusMap => ({
+  "Things Mobile": { status: "idle" },
+  Phenix: { status: "idle" },
+  Truphone: { status: "idle" },
+});
 
 const statusToBadgeVariant = (status: string) => {
   switch (status?.toLowerCase()) {
@@ -158,6 +187,8 @@ export function MultiProviderSimTab() {
   const [providerFilter, setProviderFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dataAlertFilter, setDataAlertFilter] = useState<string>("all");
+  const [apiSearchTargets, setApiSearchTargets] = useState<ProviderName[]>([...API_PROVIDERS]);
+  const [apiSearchStatus, setApiSearchStatus] = useState<ApiSearchStatusMap>(() => buildApiSearchStatus());
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -185,11 +216,23 @@ export function MultiProviderSimTab() {
 
   // Charger les SIMs progressivement (un opérateur après l'autre)
   const [allSims, setAllSims] = useState<UnifiedSim[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingProviders, setIsFetchingProviders] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [apiSearchResults, setApiSearchResults] = useState<UnifiedSim[]>([]);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const resetApiSearchStatus = useCallback(() => {
+    setApiSearchStatus(buildApiSearchStatus());
+  }, []);
+  const updateApiSearchStatus = useCallback((provider: ProviderName, patch: Partial<ApiSearchIndicator>) => {
+    setApiSearchStatus(prev => ({
+      ...prev,
+      [provider]: {
+        ...prev[provider],
+        ...patch,
+      },
+    }));
+  }, []);
   
   // Convertir les SIMs Phenix au format UnifiedSim
   const phenixUnifiedSims = useMemo<UnifiedSim[]>(() => {
@@ -226,16 +269,22 @@ export function MultiProviderSimTab() {
   }, [isPhenixLoading, phenixError, phenixUnifiedSims.length]);
 
   const loadSimsProgressively = useCallback(async () => {
-    setIsLoading(true);
+    setIsFetchingProviders(true);
     setError(null);
     setAllSims([]); // Réinitialiser
+    setApiSearchResults([]);
+    resetApiSearchStatus();
+    setProviderStatuses(prev => prev.map((status) => ({
+      ...status,
+      status: "loading",
+      count: 0,
+      error: undefined,
+    })));
 
-    const newStatuses: ProviderStatus[] = [];
-    console.log("🔄 Chargement progressif des opérateurs (un par un)...");
+    console.log("🔄 Chargement parallèle des opérateurs...");
     const startTime = Date.now();
 
-    try {
-      // 1. Things Mobile EN PREMIER (le plus rapide généralement)
+    const fetchThingsMobile = async () => {
       try {
         console.log("📱 Chargement Things Mobile...");
         const tmSims = await listAllThingsMobileSims();
@@ -251,36 +300,26 @@ export function MultiProviderSimTab() {
           lastConnection: sim.lastConnectionDate,
         }));
 
-        setAllSims(prev => [...prev, ...tmUnified]); // Afficher immédiatement
-        newStatuses.push({
-          provider: "Things Mobile",
-          status: "success",
-          count: tmUnified.length,
-        });
+        setAllSims(prev => [...prev, ...tmUnified]);
+        setProviderStatuses(prev => prev.map(p =>
+          p.provider === "Things Mobile"
+            ? { ...p, status: "success", count: tmUnified.length }
+            : p
+        ));
         console.log(`✅ Things Mobile: ${tmUnified.length} SIMs affichées`);
       } catch (err: any) {
         console.error("❌ Things Mobile error:", err);
-        newStatuses.push({
-          provider: "Things Mobile",
-          status: "error",
-          count: 0,
-          error: err.message,
-        });
+        setProviderStatuses(prev => prev.map(p =>
+          p.provider === "Things Mobile"
+            ? { ...p, status: "error", count: 0, error: err.message }
+            : p
+        ));
       }
+    };
 
-      // 2. Phenix EN DEUXIÈME - Géré via usePhenixSims hook (skip ici)
-      // Les SIMs Phenix sont chargées via le hook usePhenixSims pour bénéficier du cache React Query
-      newStatuses.push({
-        provider: "Phenix",
-        status: "loading",
-        count: 0,
-      });
-
-      // 3. Truphone EN DERNIER (le plus lent) - CHARGEMENT DE LA PREMIÈRE PAGE SEULEMENT
+    const fetchTruphone = async () => {
       try {
-        console.log("📱 Chargement Truphone (première page uniquement pour affichage rapide)...");
-
-        // Charger SEULEMENT la première page pour affichage rapide
+        console.log("📱 Chargement Truphone (première page pour affichage rapide)...");
         const pageResult = await listTruphoneSimsPaged(1, 500);
 
         if (pageResult.sims.length > 0) {
@@ -305,42 +344,36 @@ export function MultiProviderSimTab() {
             _truphoneSimRef: sim,
           }));
 
-          setAllSims(prev => [...prev, ...truphoneUnified]); // Afficher IMMÉDIATEMENT
+          setAllSims(prev => [...prev, ...truphoneUnified]);
+          setProviderStatuses(prev => prev.map(p =>
+            p.provider === "Truphone"
+              ? { ...p, status: "success", count: truphoneUnified.length }
+              : p
+          ));
           console.log(`✅ Truphone: ${truphoneUnified.length} SIMs affichées (première page)`);
-
-          newStatuses.push({
-            provider: "Truphone",
-            status: "success",
-            count: truphoneUnified.length,
-          });
         }
 
-        console.log(`ℹ️ Truphone: Affichage rapide activé - Seule la première page est chargée`);
+        console.log("ℹ️ Truphone: affichage rapide activé");
       } catch (err: any) {
         console.error("❌ Truphone error:", err);
-        newStatuses.push({
-          provider: "Truphone",
-          status: "error",
-          count: 0,
-          error: err.message,
-        });
+        setProviderStatuses(prev => prev.map(p =>
+          p.provider === "Truphone"
+            ? { ...p, status: "error", count: 0, error: err.message }
+            : p
+        ));
       }
+    };
 
-      const duration = Date.now() - startTime;
-      setProviderStatuses(newStatuses);
-      console.log(`📊 Total: ${allSims.length} SIMs chargées en ${duration}ms`);
-    } catch (err: any) {
-      console.error("❌ Erreur générale:", err);
-      setError(err);
-    } finally {
-      setIsLoading(false);
-    }
+    await Promise.allSettled([fetchThingsMobile(), fetchTruphone()]);
+    const duration = Date.now() - startTime;
+    console.log(`📊 Chargement initial terminé en ${duration}ms`);
+    setIsFetchingProviders(false);
   }, []);
 
   // Charger au montage
   useEffect(() => {
     loadSimsProgressively();
-  }, []);
+  }, [loadSimsProgressively]);
 
   const refetch = () => {
     loadSimsProgressively();
@@ -348,54 +381,61 @@ export function MultiProviderSimTab() {
 
   const dataUpdatedAt = Date.now(); // Simuler pour compatibilité
 
-  // Recherche API OPTIMISÉE avec appels directs (pas de pagination)
-  const searchSimByApi = useCallback(async (query: string) => {
-    if (!query || query.length < 3) {
+  // Recherche API OPTIMISÉE (multi-opérateurs)
+  const searchSimByApi = useCallback(async (query: string, options?: { manual?: boolean }) => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || trimmedQuery.length < 3) {
       setApiSearchResults([]);
       return;
     }
 
-    // Annuler la recherche précédente si elle est en cours
+    if (apiSearchTargets.length === 0) {
+      toast({
+        variant: "destructive",
+        description: "Sélectionnez au moins un opérateur à interroger",
+      });
+      return;
+    }
+
     if (searchAbortControllerRef.current) {
       console.log("🚫 Annulation de la recherche API précédente");
       searchAbortControllerRef.current.abort();
     }
 
-    // Créer un nouveau controller pour cette recherche
     const abortController = new AbortController();
     searchAbortControllerRef.current = abortController;
 
-    setIsSearching(true);
-    console.log(`🔍 Recherche API OPTIMISÉE pour: "${query}"`);
+    const looksLikeImei = /^\d{15}$/.test(trimmedQuery);
+    const looksLikeIccid = /^\d{13,20}$/.test(trimmedQuery) && !looksLikeImei;
+    const looksLikeMsisdn = /^\d{10,12}$/.test(trimmedQuery);
+    const isValidSearchFormat = looksLikeIccid || looksLikeMsisdn || looksLikeImei;
 
-    try {
+    if (!isValidSearchFormat) {
+      if (options?.manual) {
+        toast({
+          variant: "destructive",
+          description: "Format invalide. Utilisez un ICCID (13-20), un MSISDN (10-12) ou un IMEI (15 chiffres).",
+        });
+      }
+      return;
+    }
+
+    API_PROVIDERS
+      .filter((provider) => !apiSearchTargets.includes(provider))
+      .forEach((provider) => updateApiSearchStatus(provider, { status: "idle", message: undefined, latencyMs: undefined }));
+
+    setIsSearching(true);
+    apiSearchTargets.forEach(provider =>
+      updateApiSearchStatus(provider, { status: "loading", message: undefined, latencyMs: undefined })
+    );
+
+    const makeTruphoneResults = async (): Promise<UnifiedSim[]> => {
       const results: UnifiedSim[] = [];
 
-      // Déterminer le type de recherche
-      // Note: Priorité IMEI > ICCID > MSISDN car ils peuvent se chevaucher en longueur
-      const looksLikeImei = /^\d{15}$/.test(query); // IMEI = exactement 15 chiffres
-      const looksLikeIccid = /^\d{13,20}$/.test(query) && !looksLikeImei; // ICCID = 13-20 chiffres (mais pas 15)
-      const looksLikeMsisdn = /^\d{10,12}$/.test(query); // MSISDN = 10-12 chiffres
-
-      // Vérifier si la recherche a été annulée
-      if (abortController.signal.aborted) {
-        console.log("🚫 Recherche annulée par l'utilisateur");
-        return;
-      }
-
-      // 1. Recherche directe Truphone par ICCID (ULTRA RAPIDE - 1 seul appel API)
       if (looksLikeIccid) {
         let truphoneFound = false;
-
         try {
-          console.log(`🎯 Recherche directe Truphone par ICCID: ${query}`);
-          const startTime = Date.now();
-
-          const truphoneSim = await getTruphoneSimStatus(query);
-
-          const duration = Date.now() - startTime;
-          console.log(`⚡ Recherche Truphone terminée en ${duration}ms`);
-
+          const truphoneSim = await getTruphoneSimStatus(trimmedQuery);
           if (truphoneSim) {
             const unified: UnifiedSim = {
               id: `truphone-api-${truphoneSim.iccid}`,
@@ -407,192 +447,27 @@ export function MultiProviderSimTab() {
               servicePack: truphoneSim.servicePack,
               simType: truphoneSim.simType,
               organizationName: truphoneSim.organizationName,
-              dataUsageBytes: undefined,
-              dataAllowanceBytes: undefined,
-              dataUsagePercent: undefined,
-              smsCount: undefined,
-              callDurationMinutes: undefined,
-              isLowData: false,
               _truphoneSimRef: truphoneSim,
             };
-
             results.push(unified);
             truphoneFound = true;
-            console.log(`✅ SIM Truphone trouvée via API directe:`, unified);
-          } else {
-            console.log(`⚠️ Aucune SIM Truphone trouvée pour ICCID exact: ${query}`);
           }
-        } catch (err: any) {
-          const statusCode = err.response?.status || 'unknown';
-          console.warn(`⚠️ Recherche directe Truphone échouée (HTTP ${statusCode}), tentative avec recherche partielle...`);
-          console.log(`   Raison: ${err.message}`);
+        } catch (err) {
+          console.warn("⚠️ Recherche Truphone directe échouée, fallback pagination", err);
         }
 
-        // Fallback: Si l'API directe échoue (404 ou autre), chercher avec contains dans la pagination
-        if (!truphoneFound) {
-          console.log(`🔍 Fallback Truphone: truphoneFound=${truphoneFound}, lancement de la recherche partielle...`);
-
-          try {
-            console.log(`📄 Recherche partielle Truphone pour "${query}" dans toutes les pages...`);
-            let page = 1;
-            let foundCount = 0;
-            let totalScanned = 0;
-            const maxPages = 5; // Limiter à 5 pages = 2500 SIMs pour recherche partielle
-
-            while (page <= maxPages && foundCount === 0) {
-              console.log(`   📄 Scan page ${page}/${maxPages}...`);
-              const pageResult = await listTruphoneSimsPaged(page, 500);
-
-              if (pageResult.sims.length === 0) {
-                console.log(`   📄 Page ${page} vide, arrêt de la recherche`);
-                break;
-              }
-
-              totalScanned += pageResult.sims.length;
-              console.log(`   📄 Page ${page}: ${pageResult.sims.length} SIMs récupérées (total scanné: ${totalScanned})`);
-
-              // Recherche avec contains (partielle) pour l'ICCID
-              const matched = pageResult.sims.filter(sim =>
-                sim.iccid && String(sim.iccid).includes(query)
-              );
-
-              if (matched.length > 0) {
-                console.log(`   🎯 Correspondance(s) trouvée(s)! ICCIDs: ${matched.map(s => s.iccid).join(', ')}`);
-
-                const truphoneUnified = matched.map((sim) => ({
-                  id: `truphone-api-${sim.iccid || sim.simId}`,
-                  provider: "Truphone" as const,
-                  msisdn: sim.msisdn || "—",
-                  iccid: sim.iccid || "—",
-                  status: sim.status || "unknown",
-                  label: sim.label,
-                  description: sim.description,
-                  imei: sim.imei,
-                  servicePack: sim.servicePack,
-                  simType: sim.simType,
-                  organizationName: sim.organizationName,
-                  dataUsageBytes: undefined,
-                  dataAllowanceBytes: undefined,
-                  dataUsagePercent: undefined,
-                  smsCount: undefined,
-                  callDurationMinutes: undefined,
-                  isLowData: false,
-                  _truphoneSimRef: sim,
-                }));
-
-                results.push(...truphoneUnified);
-                foundCount += truphoneUnified.length;
-                console.log(`✅ Trouvé ${truphoneUnified.length} SIM(s) Truphone via recherche partielle (page ${page}, ${totalScanned} SIMs scannées)`);
-                break;
-              }
-
-              if (!pageResult.hasMore) {
-                console.log(`   📄 Dernière page atteinte (page ${page})`);
-                break;
-              }
-
-              page++;
-            }
-
-            if (foundCount === 0) {
-              console.log(`⚠️ Aucune SIM Truphone trouvée après avoir scanné ${totalScanned} SIMs sur ${page} page(s)`);
-              console.log(`💡 Astuce: Si vous cherchez un ICCID partiel (ex: ${query}), essayez avec l'ICCID complet du portail Truphone (ex: 89444${query})`);
-            }
-          } catch (fallbackErr) {
-            console.error("❌ Erreur fallback Truphone:", fallbackErr);
-          }
-        } else {
-          console.log(`✓ Truphone trouvée via API directe, pas besoin de fallback`);
-        }
-      }
-
-      // 2. Recherche directe Things Mobile par ICCID ou MSISDN (ULTRA RAPIDE - 1 seul appel API)
-      if (looksLikeIccid || looksLikeMsisdn) {
-        try {
-          const searchParam = looksLikeIccid ? 'ICCID' : 'MSISDN';
-          console.log(`🎯 Recherche directe Things Mobile par ${searchParam}: ${query}`);
-          const startTime = Date.now();
-
-          const tmSim = await getThingsMobileSimStatus(
-            looksLikeIccid ? { iccid: query } : { msisdn: query }
-          );
-
-          const duration = Date.now() - startTime;
-          console.log(`⚡ Recherche Things Mobile terminée en ${duration}ms`);
-
-          if (tmSim) {
-            const unified: UnifiedSim = {
-              id: `tm-api-${tmSim.iccid || tmSim.msisdn}`,
-              provider: "Things Mobile" as const,
-              msisdn: tmSim.msisdn || "—",
-              iccid: tmSim.iccid || "—",
-              status: tmSim.status || "unknown",
-              name: tmSim.name,
-              tag: tmSim.tag,
-              dataUsage: formatBytes(tmSim.monthlyTrafficBytes),
-              lastConnection: tmSim.lastConnectionDate,
-            };
-
-            results.push(unified);
-            console.log(`✅ SIM Things Mobile trouvée:`, unified);
-          } else {
-            console.log(`⚠️ Aucune SIM Things Mobile trouvée pour ${searchParam}: ${query}`);
-          }
-        } catch (err: any) {
-          console.warn("⚠️ Recherche directe Things Mobile échouée, tentative avec liste complète...");
-
-          // Fallback: Rechercher dans la liste complète Things Mobile
-          try {
-            const tmSims = await listAllThingsMobileSims();
-            const searchLower = query.toLowerCase();
-
-            const matched = tmSims.find(sim =>
-              (sim.iccid && String(sim.iccid).toLowerCase() === searchLower) ||
-              (sim.msisdn && String(sim.msisdn).toLowerCase() === searchLower)
-            );
-
-            if (matched) {
-              const unified: UnifiedSim = {
-                id: `tm-api-${matched.iccid || matched.msisdn}`,
-                provider: "Things Mobile" as const,
-                msisdn: matched.msisdn || "—",
-                iccid: matched.iccid || "—",
-                status: matched.status || "unknown",
-                name: matched.name,
-                tag: matched.tag,
-                dataUsage: formatBytes(matched.monthlyTrafficBytes),
-                lastConnection: matched.lastConnectionDate,
-              };
-
-              results.push(unified);
-              console.log(`✅ SIM Things Mobile trouvée via fallback:`, unified);
-            } else {
-              console.log(`⚠️ Aucune SIM Things Mobile trouvée (même via fallback)`);
-            }
-          } catch (fallbackErr) {
-            console.error("❌ Erreur fallback Things Mobile:", fallbackErr);
-          }
-        }
-      }
-
-      // 3. Pour les recherches IMEI (15 chiffres exactement), utiliser l'ancienne méthode de pagination
-      // car l'IMEI n'est pas la clé primaire de recherche
-      if (looksLikeImei && !looksLikeIccid) {
-        console.log(`🔍 Recherche par IMEI (pagination nécessaire): ${query}`);
-        try {
+        if (!truphoneFound && !abortController.signal.aborted) {
           let page = 1;
           let foundCount = 0;
-          const maxPages = 10; // Limiter à 10 pages = 5000 SIMs max
-
-          while (page <= maxPages && foundCount === 0) {
+          let totalScanned = 0;
+          const maxPages = 5;
+          while (page <= maxPages && foundCount === 0 && !abortController.signal.aborted) {
             const pageResult = await listTruphoneSimsPaged(page, 500);
-
             if (pageResult.sims.length === 0) break;
-
+            totalScanned += pageResult.sims.length;
             const matched = pageResult.sims.filter(sim =>
-              sim.imei && String(sim.imei) === query // Comparaison exacte pour IMEI
+              sim.iccid && String(sim.iccid).includes(trimmedQuery)
             );
-
             if (matched.length > 0) {
               const truphoneUnified = matched.map((sim) => ({
                 id: `truphone-api-${sim.iccid || sim.simId}`,
@@ -606,67 +481,230 @@ export function MultiProviderSimTab() {
                 servicePack: sim.servicePack,
                 simType: sim.simType,
                 organizationName: sim.organizationName,
-                dataUsageBytes: undefined,
-                dataAllowanceBytes: undefined,
-                dataUsagePercent: undefined,
-                smsCount: undefined,
-                callDurationMinutes: undefined,
-                isLowData: false,
                 _truphoneSimRef: sim,
               }));
-
               results.push(...truphoneUnified);
               foundCount += truphoneUnified.length;
-              console.log(`✅ Trouvé ${truphoneUnified.length} SIM(s) Truphone avec IMEI ${query}`);
-              break; // Arrêter dès qu'on trouve
             }
-
             if (!pageResult.hasMore) break;
             page++;
           }
-
-          console.log(`📊 Recherche IMEI: ${foundCount} résultat(s) sur ${page} page(s)`);
-        } catch (err) {
-          console.error("Erreur recherche IMEI Truphone:", err);
+          if (foundCount === 0) {
+            console.log(`⚠️ Aucun ICCID Truphone trouvé après ${totalScanned} SIMs scannées`);
+          }
         }
       }
 
-      setApiSearchResults(results);
-
-      if (results.length > 0) {
-        toast({
-          description: `✅ ${results.length} résultat(s) trouvé(s) en ${looksLikeIccid ? '< 2 secondes' : 'quelques secondes'}`,
-          duration: 3000,
-        });
-      } else {
-        // Suggestion si la recherche échoue avec un ICCID court
-        const suggestionText = looksLikeIccid && query.length < 19
-          ? ` Essayez avec l'ICCID complet (19 chiffres) depuis le portail Truphone.`
-          : '';
-
-        toast({
-          variant: "destructive",
-          description: `❌ Aucun résultat trouvé pour "${query}".${suggestionText}`,
-          duration: 5000,
-        });
+      if (looksLikeImei && !abortController.signal.aborted) {
+        let page = 1;
+        let foundCount = 0;
+        const maxPages = 10;
+        while (page <= maxPages && foundCount === 0 && !abortController.signal.aborted) {
+          const pageResult = await listTruphoneSimsPaged(page, 500);
+          if (pageResult.sims.length === 0) break;
+          const matched = pageResult.sims.filter(sim =>
+            sim.imei && String(sim.imei) === trimmedQuery
+          );
+          if (matched.length > 0) {
+            const truphoneUnified = matched.map((sim) => ({
+              id: `truphone-api-${sim.iccid || sim.simId}`,
+              provider: "Truphone" as const,
+              msisdn: sim.msisdn || "—",
+              iccid: sim.iccid || "—",
+              status: sim.status || "unknown",
+              label: sim.label,
+              description: sim.description,
+              imei: sim.imei,
+              servicePack: sim.servicePack,
+              simType: sim.simType,
+              organizationName: sim.organizationName,
+              _truphoneSimRef: sim,
+            }));
+            results.push(...truphoneUnified);
+            foundCount += truphoneUnified.length;
+            break;
+          }
+          if (!pageResult.hasMore) break;
+          page++;
+        }
       }
-    } catch (err) {
-      console.error("Erreur recherche API:", err);
+
+      return results;
+    };
+
+    const makeThingsMobileResults = async (): Promise<UnifiedSim[]> => {
+      if (!looksLikeIccid && !looksLikeMsisdn) {
+        return [];
+      }
+      const results: UnifiedSim[] = [];
+      try {
+        const tmSim = await getThingsMobileSimStatus(
+          looksLikeIccid ? { iccid: trimmedQuery } : { msisdn: trimmedQuery }
+        );
+        if (tmSim) {
+          results.push({
+            id: `tm-api-${tmSim.iccid || tmSim.msisdn}`,
+            provider: "Things Mobile" as const,
+            msisdn: tmSim.msisdn || "—",
+            iccid: tmSim.iccid || "—",
+            status: tmSim.status || "unknown",
+            name: tmSim.name,
+            tag: tmSim.tag,
+            dataUsage: formatBytes(tmSim.monthlyTrafficBytes),
+            lastConnection: tmSim.lastConnectionDate,
+          });
+          return results;
+        }
+      } catch (error) {
+        console.warn("⚠️ Recherche Things Mobile directe échouée", error);
+      }
+
+      try {
+        const tmSims = await listAllThingsMobileSims();
+        const searchLower = trimmedQuery.toLowerCase();
+        const matched = tmSims.find(sim =>
+          (sim.iccid && String(sim.iccid).toLowerCase() === searchLower) ||
+          (sim.msisdn && String(sim.msisdn).toLowerCase() === searchLower)
+        );
+        if (matched) {
+          results.push({
+            id: `tm-api-${matched.iccid || matched.msisdn}`,
+            provider: "Things Mobile" as const,
+            msisdn: matched.msisdn || "—",
+            iccid: matched.iccid || "—",
+            status: matched.status || "unknown",
+            name: matched.name,
+            tag: matched.tag,
+            dataUsage: formatBytes(matched.monthlyTrafficBytes),
+            lastConnection: matched.lastConnectionDate,
+          });
+        }
+      } catch (error) {
+        console.error("❌ Erreur fallback Things Mobile:", error);
+      }
+
+      return results;
+    };
+
+    const makePhenixResults = async (): Promise<UnifiedSim[]> => {
+      if (!looksLikeMsisdn) {
+        return [];
+      }
+      const sim = await getPhenixSimStatus(trimmedQuery);
+      if (!sim) {
+        return [];
+      }
+      return [{
+        id: `phenix-api-${sim.iccid || sim.msisdn}`,
+        provider: "Phenix" as const,
+        msisdn: sim.msisdn || "—",
+        iccid: sim.iccid || "—",
+        status: sim.status || "unknown",
+        statusLabel: sim.statusLabel,
+        operator: sim.operator,
+        simType: sim.simType,
+        puk1: sim.puk1,
+        pin1: sim.pin1,
+        puk2: sim.puk2,
+        pin2: sim.pin2,
+        clientCode: sim.clientCode,
+        orderId: sim.orderId,
+      }];
+    };
+
+    const runProviderSearch = async (provider: ProviderName): Promise<ProviderSearchResult> => {
+      const startedAt = performance.now();
+      if (abortController.signal.aborted) {
+        return { provider, sims: [], duration: 0, skipped: true, message: "Recherche annulée" };
+      }
+
+      if (provider === "Truphone") {
+        if (!looksLikeIccid && !looksLikeImei) {
+          return { provider, sims: [], duration: 0, skipped: true, message: "ICCID ou IMEI requis" };
+        }
+        const sims = await makeTruphoneResults();
+        return { provider, sims, duration: performance.now() - startedAt };
+      }
+
+      if (provider === "Things Mobile") {
+        if (!looksLikeIccid && !looksLikeMsisdn) {
+          return { provider, sims: [], duration: 0, skipped: true, message: "ICCID ou MSISDN requis" };
+        }
+        const sims = await makeThingsMobileResults();
+        return { provider, sims, duration: performance.now() - startedAt };
+      }
+
+      if (provider === "Phenix") {
+        if (!looksLikeMsisdn) {
+          return { provider, sims: [], duration: 0, skipped: true, message: "MSISDN requis" };
+        }
+        const sims = await makePhenixResults();
+        return { provider, sims, duration: performance.now() - startedAt };
+      }
+
+      return { provider, sims: [], duration: 0, skipped: true };
+    };
+
+    try {
+      const providerResults = await Promise.allSettled(apiSearchTargets.map(runProviderSearch));
+      const aggregated: UnifiedSim[] = [];
+
+      providerResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          const { provider, sims, duration, skipped, message } = result.value;
+          if (skipped) {
+            updateApiSearchStatus(provider, { status: "skipped", message });
+          } else {
+            updateApiSearchStatus(provider, {
+              status: sims.length > 0 ? "success" : "error",
+              message: sims.length > 0 ? `${sims.length} résultat(s)` : (message || "Aucun résultat"),
+              latencyMs: Math.round(duration),
+            });
+          }
+          aggregated.push(...sims);
+        } else {
+          const provider = result.reason?.provider as ProviderName | undefined;
+          const errorMessage = result.reason?.error?.message || result.reason?.message || "Erreur inconnue";
+          if (provider) {
+            updateApiSearchStatus(provider, { status: "error", message: errorMessage });
+          }
+        }
+      });
+
+      if (!abortController.signal.aborted) {
+        const deduped = new Map<string, UnifiedSim>();
+        aggregated.forEach(sim => deduped.set(sim.id, sim));
+        const uniqueResults = Array.from(deduped.values());
+        setApiSearchResults(uniqueResults);
+
+        if (options?.manual) {
+          toast({
+            variant: uniqueResults.length > 0 ? "default" : "destructive",
+            description: uniqueResults.length > 0
+              ? `✅ ${uniqueResults.length} résultat(s) via API`
+              : `❌ Aucun résultat trouvé via les API sélectionnées`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Erreur recherche API:", error);
       toast({
         variant: "destructive",
         description: "Erreur lors de la recherche API",
-        duration: 3000,
       });
     } finally {
-      setIsSearching(false);
+      if (searchAbortControllerRef.current === abortController) {
+        setIsSearching(false);
+      }
     }
-  }, [toast]);
+  }, [apiSearchTargets, toast, updateApiSearchStatus]);
 
   // Debounce de la recherche API avec détection intelligente
   useEffect(() => {
     // Nettoyer les résultats API si la recherche est vide
     if (!searchValue) {
       setApiSearchResults([]);
+      resetApiSearchStatus();
       return;
     }
 
@@ -698,7 +736,7 @@ export function MultiProviderSimTab() {
       const looksLikeMsisdn = /^\d{10,12}$/.test(searchValue);
       const isValidSearchFormat = looksLikeIccid || looksLikeMsisdn || looksLikeImei;
 
-      if (localResults.length === 0 && isValidSearchFormat) {
+      if (localResults.length === 0 && isValidSearchFormat && apiSearchTargets.length > 0) {
         const searchType = looksLikeIccid ? 'ICCID (recherche ultra-rapide)' :
                           looksLikeMsisdn ? 'MSISDN (recherche ultra-rapide)' :
                           'IMEI (recherche avec pagination)';
@@ -706,6 +744,7 @@ export function MultiProviderSimTab() {
         searchSimByApi(searchValue);
       } else {
         setApiSearchResults([]);
+        resetApiSearchStatus();
         if (localResults.length > 0) {
           console.log(`✅ Résultats trouvés localement, pas besoin de recherche API`);
         } else if (!isValidSearchFormat) {
@@ -715,7 +754,7 @@ export function MultiProviderSimTab() {
     }, 800); // Réduit à 800ms car la recherche directe est ultra-rapide maintenant
 
     return () => clearTimeout(timer);
-  }, [searchValue, allSims, searchSimByApi]);
+  }, [searchValue, allSims, searchSimByApi, resetApiSearchStatus, apiSearchTargets.length]);
 
   // Enrichissement progressif des SIMs Truphone en arrière-plan
   useEffect(() => {
@@ -727,7 +766,7 @@ export function MultiProviderSimTab() {
 
     const enrichTruphoneSims = async () => {
       // Ne pas enrichir si on est déjà en train d'enrichir, si on est en chargement, ou si c'est déjà fait
-      if (isEnriching || isLoading || allSims.length === 0 || enrichmentDoneRef.current) return;
+      if (isEnriching || isFetchingProviders || allSims.length === 0 || enrichmentDoneRef.current) return;
 
       // Trouver les SIMs Truphone non enrichies
       const truphoneSims = allSims.filter(
@@ -823,7 +862,7 @@ export function MultiProviderSimTab() {
     //   enrichTruphoneSims();
     // }, 1000);
     // return () => clearTimeout(timer);
-  }, [dataUpdatedAt, isLoading]); // allSims et isEnriching exclus volontairement pour éviter les boucles
+  }, [dataUpdatedAt, isFetchingProviders]); // allSims et isEnriching exclus volontairement pour éviter les boucles
 
   // Combiner les SIMs locales avec les résultats de recherche API et Phenix (via hook)
   const combinedSims = useMemo(() => {
@@ -836,6 +875,8 @@ export function MultiProviderSimTab() {
 
     return Array.from(simsMap.values());
   }, [allSims, phenixUnifiedSims, apiSearchResults]);
+
+  const isBootstrapping = (isFetchingProviders || isPhenixLoading) && combinedSims.length === 0;
 
   const filteredSims = combinedSims.filter((sim) => {
     // Filtre de recherche texte
@@ -935,6 +976,7 @@ export function MultiProviderSimTab() {
       id: "operator",
       label: "Réseau (Phenix)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Phenix" && row.operator) {
           return <span className="text-sm">{row.operator}</span>;
@@ -946,6 +988,7 @@ export function MultiProviderSimTab() {
       id: "pinPuk",
       label: "PIN/PUK (Phenix)",
       sortable: false,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider !== "Phenix" || (!row.pin1 && !row.puk1)) {
           return "—";
@@ -1023,6 +1066,7 @@ export function MultiProviderSimTab() {
       id: "smsCount",
       label: "SMS (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.smsCount !== undefined) {
           return row.smsCount.toString();
@@ -1034,6 +1078,7 @@ export function MultiProviderSimTab() {
       id: "callDurationMinutes",
       label: "Appels (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.callDurationMinutes !== undefined) {
           return `${row.callDurationMinutes} min`;
@@ -1045,6 +1090,7 @@ export function MultiProviderSimTab() {
       id: "allowedData",
       label: "Données autorisées (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.allowedData) {
           return row.allowedData;
@@ -1056,6 +1102,7 @@ export function MultiProviderSimTab() {
       id: "remainingData",
       label: "Données restantes (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.remainingData) {
           return row.remainingData;
@@ -1067,6 +1114,7 @@ export function MultiProviderSimTab() {
       id: "allowedTime",
       label: "Temps autorisé (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.allowedTime) {
           return row.allowedTime;
@@ -1078,6 +1126,7 @@ export function MultiProviderSimTab() {
       id: "remainingTime",
       label: "Temps restant (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.remainingTime) {
           return row.remainingTime;
@@ -1089,6 +1138,7 @@ export function MultiProviderSimTab() {
       id: "testStateStartDate",
       label: "Date test (Truphone)",
       sortable: true,
+      visible: false,
       renderCell: (value: any, row: any) => {
         if (row.provider === "Truphone" && row.testStateStartDate) {
           return row.testStateStartDate;
@@ -1097,12 +1147,12 @@ export function MultiProviderSimTab() {
       }
     },
     { id: "lastConnection", label: "Dernière connexion", sortable: true },
-    { id: "name", label: "Nom", sortable: true },
-    { id: "tag", label: "Tag", sortable: true },
+    { id: "name", label: "Nom", sortable: true, visible: false },
+    { id: "tag", label: "Tag", sortable: true, visible: false },
     { id: "label", label: "Libellé", sortable: true },
     { id: "imei", label: "IMEI", sortable: true },
-    { id: "servicePack", label: "Plan tarifaire", sortable: true },
-    { id: "organizationName", label: "Organisation", sortable: true },
+    { id: "servicePack", label: "Plan tarifaire", sortable: true, visible: false },
+    { id: "organizationName", label: "Organisation", sortable: true, visible: false },
     {
       id: "actions",
       label: "Actions",
@@ -1121,13 +1171,6 @@ export function MultiProviderSimTab() {
     },
   ];
 
-  const stats = {
-    total: combinedSims.length,
-    thingsMobile: combinedSims.filter((s) => s.provider === "Things Mobile").length,
-    phenix: combinedSims.filter((s) => s.provider === "Phenix").length,
-    truphone: combinedSims.filter((s) => s.provider === "Truphone").length,
-  };
-
   // Calculer les SIMs avec un niveau de data faible
   const lowDataSims = combinedSims.filter(sim => sim.isLowData && sim.dataUsagePercent !== undefined);
   const criticalSims = lowDataSims.filter(sim => sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.DEPLETED);
@@ -1135,6 +1178,26 @@ export function MultiProviderSimTab() {
     sim.dataUsagePercent! >= DATA_USAGE_THRESHOLDS.WARNING &&
     sim.dataUsagePercent! < DATA_USAGE_THRESHOLDS.DEPLETED
   );
+
+  const getProviderStatusVisuals = (status: ProviderStatus["status"]) => {
+    switch (status) {
+      case "success":
+        return {
+          icon: <CheckCircle2 className="h-3 w-3 text-emerald-500" />,
+          variant: "outline" as const,
+        };
+      case "error":
+        return {
+          icon: <AlertTriangle className="h-3 w-3 text-destructive" />,
+          variant: "destructive" as const,
+        };
+      default:
+        return {
+          icon: <Loader2 className="h-3 w-3 animate-spin" />,
+          variant: "secondary" as const,
+        };
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -1196,9 +1259,9 @@ export function MultiProviderSimTab() {
                 onClick={() => refetch()}
                 variant="outline"
                 size="sm"
-                disabled={isLoading}
+                disabled={isFetchingProviders}
               >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetchingProviders ? "animate-spin" : ""}`} />
                 Actualiser
               </Button>
             </div>
@@ -1206,8 +1269,8 @@ export function MultiProviderSimTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Search Bar avec indicateur de recherche API */}
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 relative">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex-1 min-w-[240px] relative">
               <Input
                 placeholder="Rechercher par MSISDN, ICCID, IMEI..."
                 value={searchValue}
@@ -1220,6 +1283,16 @@ export function MultiProviderSimTab() {
                 </div>
               )}
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-2"
+              onClick={() => searchSimByApi(searchValue, { manual: true })}
+              disabled={!searchValue || searchValue.length < 3 || apiSearchTargets.length === 0 || isSearching}
+            >
+              <Search className="h-4 w-4" />
+              Recherche API
+            </Button>
             {apiSearchResults.length > 0 && (
               <Badge variant="outline" className="text-xs">
                 +{apiSearchResults.length} via API
@@ -1227,8 +1300,79 @@ export function MultiProviderSimTab() {
             )}
           </div>
 
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">APIs ciblées</span>
+            <ToggleGroup
+              type="multiple"
+              value={apiSearchTargets}
+              onValueChange={(values) => {
+                const typed = Array.isArray(values) ? (values as ProviderName[]) : [];
+                setApiSearchTargets(typed);
+              }}
+              className="flex flex-wrap gap-1"
+            >
+              {API_PROVIDERS.map((provider) => (
+                <ToggleGroupItem
+                  key={provider}
+                  value={provider}
+                  className="px-3 py-1 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  {provider}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <div className="flex flex-wrap gap-1">
+              {API_PROVIDERS.map((provider) => {
+                const status = apiSearchStatus[provider];
+                const phase = status?.status || "idle";
+                const latency = status?.latencyMs;
+                const message = status?.message;
+                const icon = phase === "loading"
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : phase === "success"
+                    ? <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                    : phase === "error"
+                      ? <XCircle className="h-3 w-3 text-destructive" />
+                      : phase === "skipped"
+                        ? <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        : null;
+
+                return (
+                  <Badge
+                    key={`status-${provider}`}
+                    variant="outline"
+                    className="flex items-center gap-1 text-[10px]"
+                  >
+                    {icon}
+                    <span>{provider}</span>
+                    {typeof latency === "number" && <span className="text-muted-foreground">({latency}ms)</span>}
+                    {message && <span className="text-muted-foreground">• {message}</span>}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs">
+            {providerStatuses.map((status) => {
+              const visuals = getProviderStatusVisuals(status.status);
+              return (
+                <Badge
+                  key={`provider-${status.provider}`}
+                  variant={visuals.variant}
+                  className="flex items-center gap-1"
+                >
+                  {visuals.icon}
+                  <span>{status.provider}</span>
+                  <span className="text-muted-foreground">({status.count})</span>
+                  {status.error && <span className="text-muted-foreground">• {status.error}</span>}
+                </Badge>
+              );
+            })}
+          </div>
+
           {/* Warning for partial data - Compact */}
-          {providerStatuses.some((p) => p.status === "error") && !isLoading && (
+          {providerStatuses.some((p) => p.status === "error") && !isBootstrapping && (
             <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950 py-2">
               <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
               <AlertTitle className="text-sm">Données partielles</AlertTitle>
@@ -1301,6 +1445,9 @@ export function MultiProviderSimTab() {
                   setStatusFilter("all");
                   setDataAlertFilter("all");
                   setSearchValue("");
+                  setApiSearchTargets([...API_PROVIDERS]);
+                  resetApiSearchStatus();
+                  setApiSearchResults([]);
                 }}
                 className="w-full h-9"
               >
@@ -1314,15 +1461,17 @@ export function MultiProviderSimTab() {
             <EnhancedDataTable
               data={filteredSims}
               columns={columns}
-              loading={isLoading}
+              loading={isBootstrapping}
               enablePagination={false}
+              enableColumnVisibility
+              columnVisibilityLabel="Colonnes"
             />
           </div>
           <p className="text-xs text-muted-foreground">
             {filteredSims.length} SIM(s) affichée(s) sur {combinedSims.length} au total • Virtualisation activée
           </p>
 
-          {!isLoading && filteredSims.length === 0 && (
+          {!isBootstrapping && filteredSims.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-6 text-muted-foreground">
               <AlertTriangle className="h-4 w-4" />
               <p className="text-sm">Aucune carte SIM trouvée</p>

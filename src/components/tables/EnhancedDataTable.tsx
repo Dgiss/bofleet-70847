@@ -1,9 +1,10 @@
 
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EnhancedPagination } from "@/components/ui/enhanced-pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Edit, Link, Trash, Unlink } from "lucide-react";
+import { Columns2, Edit, Link, Trash, Unlink } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { CopyableCell } from "./CopyableCell";
 
@@ -30,6 +31,8 @@ interface EnhancedDataTableProps {
   selectedDevices?: string[];
   isSelectMode?: boolean;
   isDeviceSelectMode?: boolean;
+  enableColumnVisibility?: boolean;
+  columnVisibilityLabel?: string;
 }
 
 export function EnhancedDataTable({ 
@@ -46,7 +49,9 @@ export function EnhancedDataTable({
   selectedVehicles = [],
   selectedDevices = [],
   isSelectMode = false,
-  isDeviceSelectMode = false
+  isDeviceSelectMode = false,
+  enableColumnVisibility = false,
+  columnVisibilityLabel = "Colonnes"
 }: EnhancedDataTableProps) {
   const [columns, setColumns] = useState<Column[]>(
     initialColumns.map(col => ({ ...col, visible: col.visible !== undefined ? col.visible : true }))
@@ -242,6 +247,30 @@ export function EnhancedDataTable({
 
   return (
     <div className="space-y-4">
+      {enableColumnVisibility && (
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-2">
+                <Columns2 className="h-4 w-4" />
+                {columnVisibilityLabel}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 max-h-72 overflow-auto">
+              {columns.map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={column.visible}
+                  disabled={column.visible && visibleColumns.length === 1}
+                  onCheckedChange={() => toggleColumnVisibility(column.id)}
+                >
+                  {column.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <div className="border rounded-md">
       <div ref={parentRef} className={enableVirtual ? "overflow-auto max-h-[600px]" : ""}>
         <Table>
