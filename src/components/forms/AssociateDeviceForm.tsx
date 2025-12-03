@@ -5,7 +5,7 @@ import { CompanySearchSelect } from '@/components/ui/company-search-select';
 import { toast } from '@/hooks/use-toast';
 import { Loader2, AlertTriangle, Link2 } from 'lucide-react';
 import { associateDeviceToVehicleUnique } from '@/services/DeviceUniqueAssociationService';
-import { generateClient } from 'aws-amplify/api';
+import { getGraphQLClient } from '@/config/aws-config';
 import { vehiclesByCompanyVehiclesId } from '@/graphql/queries';
 import {
   AlertDialog,
@@ -40,8 +40,6 @@ export default function AssociateDeviceForm({ deviceImei, onSuccess, onClose }: 
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [conflictingVehicle, setConflictingVehicle] = useState<any>(null);
 
-  const client = generateClient();
-
   // Load vehicles when company is selected
   useEffect(() => {
     const loadVehicles = async () => {
@@ -50,6 +48,7 @@ export default function AssociateDeviceForm({ deviceImei, onSuccess, onClose }: 
         setSelectedVehicle('');
         
         try {
+          const client = await getGraphQLClient();
           const response = await client.graphql({
             query: vehiclesByCompanyVehiclesId,
             variables: {
