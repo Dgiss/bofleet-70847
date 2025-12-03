@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CompanySearchSelect } from '@/components/ui/company-search-select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, AlertTriangle, Link2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { associateDeviceToVehicleUnique } from '@/services/DeviceUniqueAssociationService';
 import { getGraphQLClient } from '@/config/aws-config';
 import { vehiclesByCompanyVehiclesId } from '@/graphql/queries';
@@ -17,13 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface AssociateDeviceFormProps {
   deviceImei: string;
@@ -39,6 +33,27 @@ export default function AssociateDeviceForm({ deviceImei, onSuccess, onClose }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [conflictingVehicle, setConflictingVehicle] = useState<any>(null);
+
+  // Convert vehicles to searchable options
+  const vehicleOptions = useMemo(() => {
+    return companyVehicles.map((vehicle) => {
+      const hasDevice = vehicle.device?.imei || vehicle.vehicleDeviceImei;
+      const linkedImei = vehicle.device?.imei || vehicle.vehicleDeviceImei;
+      
+      let label = vehicle.immat;
+      if (vehicle.nomVehicule) {
+        label += ` (${vehicle.nomVehicule})`;
+      }
+      if (hasDevice) {
+        label += ` [🔗 ${linkedImei}]`;
+      }
+      
+      return {
+        value: vehicle.immat,
+        label,
+      };
+    });
+  }, [companyVehicles]);
 
   // Load vehicles when company is selected
   useEffect(() => {
@@ -180,53 +195,21 @@ export default function AssociateDeviceForm({ deviceImei, onSuccess, onClose }: 
 
         {/* Vehicle Selection */}
         <div className="space-y-2">
-          <Label htmlFor="vehicle">Véhicule *</Label>
-          <Select
+          <Label htmlFor="vehicle">Véhicule * (recherche par immat ou nom)</Label>
+          <SearchableSelect
+            options={vehicleOptions}
             value={selectedVehicle}
             onValueChange={handleVehicleSelect}
+            placeholder={
+              !selectedCompany 
+                ? "Sélectionnez d'abord une entreprise"
+                : loadingVehicles 
+                ? "Chargement..."
+                : "Rechercher un véhicule"
+            }
+            emptyMessage="Aucun véhicule trouvé"
             disabled={!selectedCompany || loadingVehicles}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={
-                !selectedCompany 
-                  ? "Sélectionnez d'abord une entreprise"
-                  : loadingVehicles 
-                  ? "Chargement..."
-                  : "Sélectionner un véhicule"
-              } />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {companyVehicles.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground text-sm">
-                  Aucun véhicule disponible
-                </div>
-              ) : (
-                companyVehicles.map((vehicle) => {
-                  const hasDevice = vehicle.device?.imei || vehicle.vehicleDeviceImei;
-                  const deviceImei = vehicle.device?.imei || vehicle.vehicleDeviceImei;
-                  
-                  return (
-                    <SelectItem key={vehicle.immat} value={vehicle.immat}>
-                      <div className="flex items-center gap-2">
-                        <span>{vehicle.immat}</span>
-                        {vehicle.nomVehicule && (
-                          <span className="text-xs text-muted-foreground">
-                            ({vehicle.nomVehicule})
-                          </span>
-                        )}
-                        {hasDevice && (
-                          <span className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
-                            <Link2 className="h-3 w-3" />
-                            {deviceImei}
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  );
-                })
-              )}
-            </SelectContent>
-          </Select>
+          />
           {loadingVehicles && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
