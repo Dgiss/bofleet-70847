@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { Building2, Car, BarChart, Download, Box, Building } from "lucide-react";
+import { Building, Box, BarChart, Download } from "lucide-react";
 
 export function AppSidebar() {
   const location = useLocation();
@@ -36,16 +36,6 @@ export function AppSidebar() {
       icon: Download,
       path: "/fota-web",
     },
-    // {
-    //   title: "Entreprises & Utilisateurs",
-    //   icon: Building2,
-    //   path: "/entreprises",
-    // },
-    // {
-    //   title: "Véhicules & Boîtiers",
-    //   icon: Car,
-    //   path: "/vehicules-boitiers",
-    // },
   ];
 
   return (

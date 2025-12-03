@@ -10,7 +10,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ApiDiagnosticPage from "./pages/ApiDiagnosticPage";
 import BoitierPage from "./pages/BoitierPage";
 import CompanyManagementPage from "./pages/CompanyManagementPage";
-import EntreprisesPage from "./pages/EntreprisesPage";
+
 import FotaWebPage from "./pages/FotaWebPage";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
@@ -37,7 +37,7 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route index element={<Navigate to="/gestion-entreprises" replace />} />
-              <Route path="entreprises" element={<EntreprisesPage />} />
+              
               <Route path="gestion-entreprises" element={<CompanyManagementPage />} />
               <Route path="vehicules-boitiers" element={<VehiclesDevicesPage />} />
               <Route path="sim-cards" element={<SimCardsPage />} />
